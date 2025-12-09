@@ -3,8 +3,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
-import { Euro, FileText, Plus, TrendingUp, AlertTriangle } from "lucide-react";
-import { format, startOfMonth, endOfMonth, startOfYear, endOfYear } from "date-fns";
+import { Euro, FileText, Plus, TrendingUp, AlertTriangle, History } from "lucide-react";
+import { format, startOfMonth, endOfMonth, startOfYear, endOfYear, subMonths } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis, ResponsiveContainer } from "recharts";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
@@ -22,7 +22,7 @@ const Dashboard = () => {
     monthlyRevenue: 0,
     projectedEarnings: 0,
     balanceReceivable: 0,
-    periodBalanceReceivable: 0,
+    previousMonthBalance: 0,
     corteCoseDebt: 0,
   });
   const [chartData, setChartData] = useState<any[]>([]);
@@ -46,6 +46,12 @@ const Dashboard = () => {
     const startDateStr = format(startDate, "yyyy-MM-dd");
     const endDateStr = format(endDate, "yyyy-MM-dd");
 
+    // Calculate previous month dates
+    const previousMonthDate = subMonths(new Date(selectedYear, selectedMonth, 1), 1);
+    const prevMonthStart = startOfMonth(previousMonthDate);
+    const prevMonthEnd = endOfMonth(previousMonthDate);
+    const prevMonthStr = format(previousMonthDate, "yyyy-MM");
+
     // Load stats - only validated invoices
     const { data: invoices } = await supabase
       .from("invoices")
@@ -54,7 +60,7 @@ const Dashboard = () => {
       .gte("delivery_date", startDateStr)
       .lte("delivery_date", endDateStr);
 
-    // Load revenues - need to get all revenues and filter by reference_month or revenue_date
+    // Load revenues - need to get all revenues
     const { data: allRevenuesForPeriod } = await supabase
       .from("revenues")
       .select("amount, revenue_date, reference_month");
@@ -67,15 +73,12 @@ const Dashboard = () => {
     // Filter revenues: use reference_month if set, otherwise use revenue_date
     const revenues = allRevenuesForPeriod?.filter(rev => {
       if (rev.reference_month) {
-        // If reference_month is set, use it for filtering
         if (period === "month") {
           return rev.reference_month === periodMonthStr;
         } else {
-          // For year view, check if reference_month year matches
           return rev.reference_month.startsWith(selectedYear.toString());
         }
       } else {
-        // No reference_month, use revenue_date
         const revDate = new Date(rev.revenue_date);
         if (period === "month") {
           return revDate.getMonth() === selectedMonth && revDate.getFullYear() === selectedYear;
@@ -107,8 +110,33 @@ const Dashboard = () => {
       .eq("is_validated", true)
       .gte("delivery_date", startingDate.toISOString().split('T')[0])
       .lte("delivery_date", endDateStr);
+
+    // Load previous month data for "Saldo do Mês Anterior"
+    const { data: prevMonthInvoices } = await supabase
+      .from("invoices")
+      .select("total_value")
+      .eq("is_validated", true)
+      .gte("delivery_date", format(prevMonthStart, "yyyy-MM-dd"))
+      .lte("delivery_date", format(prevMonthEnd, "yyyy-MM-dd"));
+
+    // Previous month revenues
+    const prevMonthRevenues = allRevenuesForPeriod?.filter(rev => {
+      if (rev.reference_month) {
+        return rev.reference_month === prevMonthStr;
+      } else {
+        const revDate = new Date(rev.revenue_date);
+        return revDate.getMonth() === previousMonthDate.getMonth() && 
+               revDate.getFullYear() === previousMonthDate.getFullYear();
+      }
+    }) || [];
+
+    // Previous month debts
+    const { data: prevMonthDebts } = await supabase
+      .from("corte_cose_debts")
+      .select("amount")
+      .gte("debt_date", format(prevMonthStart, "yyyy-MM-dd"))
+      .lte("debt_date", format(prevMonthEnd, "yyyy-MM-dd"));
     
-    // For accumulated revenues, we already have allRevenuesForPeriod
     // Filter all revenues up to the end of selected period
     const allRevenues = allRevenuesForPeriod?.filter(rev => {
       const effectiveDate = rev.reference_month 
@@ -142,8 +170,12 @@ const Dashboard = () => {
       // Saldo a Receber Total = Projeção de Ganhos + Dívida Corte & Cose (acumulado) - Receitas
       const balanceReceivable = allProjectedEarnings + allCorteCoseDebt - allRevenuesTotal;
       
-      // Saldo a Receber do Mês = Projeção de Ganhos do período - Receitas do período
-      const periodBalanceReceivable = projectedEarnings - monthlyRevenue;
+      // Calculate previous month balance
+      const prevMonthTotal = prevMonthInvoices?.reduce((sum, inv) => sum + Number(inv.total_value), 0) || 0;
+      const prevMonthProjection = prevMonthTotal * 0.30;
+      const prevMonthRevenuesTotal = prevMonthRevenues?.reduce((sum, rev) => sum + Number(rev.amount), 0) || 0;
+      const prevMonthDebtsTotal = prevMonthDebts?.reduce((sum, debt) => sum + Number(debt.amount), 0) || 0;
+      const previousMonthBalance = prevMonthProjection + prevMonthDebtsTotal - prevMonthRevenuesTotal;
 
       setStats({
         totalValue,
@@ -152,7 +184,7 @@ const Dashboard = () => {
         monthlyRevenue,
         projectedEarnings,
         balanceReceivable,
-        periodBalanceReceivable,
+        previousMonthBalance,
         corteCoseDebt,
       });
 
@@ -215,6 +247,10 @@ const Dashboard = () => {
 
   const years = Array.from({ length: 10 }, (_, i) => new Date().getFullYear() - i);
 
+  // Get previous month name for display
+  const previousMonthDate = subMonths(new Date(selectedYear, selectedMonth, 1), 1);
+  const previousMonthName = format(previousMonthDate, "MMMM yyyy", { locale: ptBR });
+
   return (
     <div className="space-y-8">
       <div className="flex flex-col gap-4">
@@ -273,7 +309,7 @@ const Dashboard = () => {
         </div>
       </div>
 
-      {/* Stats Cards */}
+      {/* Stats Cards - Row 1: Valor Total, Notas Fiscais, Entradas Manuais, Dívida Corte & Cose */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
@@ -305,6 +341,22 @@ const Dashboard = () => {
           </CardContent>
         </Card>
 
+        <Card className="border-destructive">
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium text-destructive">Dívida Corte & Cose</CardTitle>
+            <AlertTriangle className="h-4 w-4 text-destructive" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-destructive">€ {stats.corteCoseDebt.toFixed(2)}</div>
+            <p className="text-xs text-muted-foreground mt-1">
+              No período selecionado
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Stats Cards - Row 2: Receitas do Período, Projeções de Ganhos, Saldo Mês Anterior, Saldo Total */}
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium">Receitas do Período</CardTitle>
@@ -334,28 +386,15 @@ const Dashboard = () => {
           </CardContent>
         </Card>
 
-        <Card className="border-destructive">
+        <Card className="border-orange-500/50">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-destructive">Dívida Corte & Cose</CardTitle>
-            <AlertTriangle className="h-4 w-4 text-destructive" />
+            <CardTitle className="text-sm font-medium text-orange-600">Saldo Mês Anterior</CardTitle>
+            <History className="h-4 w-4 text-orange-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-destructive">€ {stats.corteCoseDebt.toFixed(2)}</div>
+            <div className="text-2xl font-bold text-orange-600">€ {stats.previousMonthBalance.toFixed(2)}</div>
             <p className="text-xs text-muted-foreground mt-1">
-              No período selecionado
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium">Saldo a Receber do Mês</CardTitle>
-            <TrendingUp className="h-4 w-4 text-primary" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-primary">€ {stats.periodBalanceReceivable.toFixed(2)}</div>
-            <p className="text-xs text-muted-foreground mt-1">
-              Projeção - Receitas do Período
+              Pendente de {previousMonthName}
             </p>
           </CardContent>
         </Card>
