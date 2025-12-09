@@ -175,7 +175,8 @@ const Dashboard = () => {
       const prevMonthProjection = prevMonthTotal * 0.30;
       const prevMonthRevenuesTotal = prevMonthRevenues?.reduce((sum, rev) => sum + Number(rev.amount), 0) || 0;
       const prevMonthDebtsTotal = prevMonthDebts?.reduce((sum, debt) => sum + Number(debt.amount), 0) || 0;
-      const previousMonthBalance = prevMonthProjection + prevMonthDebtsTotal - prevMonthRevenuesTotal;
+      // Se o saldo for negativo (mês totalmente pago), mostrar 0
+      const previousMonthBalance = Math.max(0, prevMonthProjection + prevMonthDebtsTotal - prevMonthRevenuesTotal);
 
       setStats({
         totalValue,
