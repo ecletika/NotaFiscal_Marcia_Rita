@@ -111,31 +111,28 @@ const Dashboard = () => {
       .gte("delivery_date", startingDate.toISOString().split('T')[0])
       .lte("delivery_date", endDateStr);
 
-    // Load previous month data for "Saldo do Mês Anterior"
-    const { data: prevMonthInvoices } = await supabase
+    // Load ALL data up to end of previous month for accumulated "Saldo do Mês Anterior"
+    const { data: invoicesUpToPrevMonth } = await supabase
       .from("invoices")
       .select("total_value")
       .eq("is_validated", true)
-      .gte("delivery_date", format(prevMonthStart, "yyyy-MM-dd"))
+      .gte("delivery_date", startingDate.toISOString().split('T')[0])
       .lte("delivery_date", format(prevMonthEnd, "yyyy-MM-dd"));
 
-    // Previous month revenues
-    const prevMonthRevenues = allRevenuesForPeriod?.filter(rev => {
-      if (rev.reference_month) {
-        return rev.reference_month === prevMonthStr;
-      } else {
-        const revDate = new Date(rev.revenue_date);
-        return revDate.getMonth() === previousMonthDate.getMonth() && 
-               revDate.getFullYear() === previousMonthDate.getFullYear();
-      }
-    }) || [];
-
-    // Previous month debts
-    const { data: prevMonthDebts } = await supabase
+    // All debts up to end of previous month
+    const { data: debtsUpToPrevMonth } = await supabase
       .from("corte_cose_debts")
       .select("amount")
-      .gte("debt_date", format(prevMonthStart, "yyyy-MM-dd"))
+      .gte("debt_date", startingDate.toISOString().split('T')[0])
       .lte("debt_date", format(prevMonthEnd, "yyyy-MM-dd"));
+
+    // Filter all revenues up to end of previous month
+    const revenuesUpToPrevMonth = allRevenuesForPeriod?.filter(rev => {
+      const effectiveDate = rev.reference_month 
+        ? new Date(rev.reference_month + '-01') 
+        : new Date(rev.revenue_date);
+      return effectiveDate >= startingDate && effectiveDate <= prevMonthEnd;
+    }) || [];
     
     // Filter all revenues up to the end of selected period
     const allRevenues = allRevenuesForPeriod?.filter(rev => {
@@ -170,13 +167,13 @@ const Dashboard = () => {
       // Saldo a Receber Total = Projeção de Ganhos + Dívida Corte & Cose (acumulado) - Receitas
       const balanceReceivable = allProjectedEarnings + allCorteCoseDebt - allRevenuesTotal;
       
-      // Calculate previous month balance
-      const prevMonthTotal = prevMonthInvoices?.reduce((sum, inv) => sum + Number(inv.total_value), 0) || 0;
-      const prevMonthProjection = prevMonthTotal * 0.30;
-      const prevMonthRevenuesTotal = prevMonthRevenues?.reduce((sum, rev) => sum + Number(rev.amount), 0) || 0;
-      const prevMonthDebtsTotal = prevMonthDebts?.reduce((sum, debt) => sum + Number(debt.amount), 0) || 0;
-      // Se o saldo for negativo (mês totalmente pago), mostrar 0
-      const previousMonthBalance = Math.max(0, prevMonthProjection + prevMonthDebtsTotal - prevMonthRevenuesTotal);
+      // Calculate accumulated balance up to end of previous month
+      const invoicesTotalUpToPrevMonth = invoicesUpToPrevMonth?.reduce((sum, inv) => sum + Number(inv.total_value), 0) || 0;
+      const projectionUpToPrevMonth = invoicesTotalUpToPrevMonth * 0.30;
+      const revenuesUpToPrevMonthTotal = revenuesUpToPrevMonth?.reduce((sum, rev) => sum + Number(rev.amount), 0) || 0;
+      const debtsUpToPrevMonthTotal = debtsUpToPrevMonth?.reduce((sum, debt) => sum + Number(debt.amount), 0) || 0;
+      // Saldo acumulado até o final do mês anterior (se negativo, mostrar 0)
+      const previousMonthBalance = Math.max(0, projectionUpToPrevMonth + debtsUpToPrevMonthTotal - revenuesUpToPrevMonthTotal);
 
       setStats({
         totalValue,
