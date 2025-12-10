@@ -43,15 +43,20 @@ serve(async (req) => {
     console.log('Authenticated user:', user.id);
 
     const { imageUrl } = await req.json();
+    console.log('Received imageUrl:', imageUrl);
     
     if (!imageUrl) {
+      console.error('No imageUrl provided in request');
       throw new Error('Image URL is required');
     }
 
     console.log('Processing invoice image:', imageUrl);
 
     const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
+    console.log('LOVABLE_API_KEY configured:', !!LOVABLE_API_KEY);
+    
     if (!LOVABLE_API_KEY) {
+      console.error('LOVABLE_API_KEY not found in environment');
       throw new Error('LOVABLE_API_KEY not configured');
     }
 
