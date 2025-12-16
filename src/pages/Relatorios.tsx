@@ -492,6 +492,15 @@ const Relatorios = () => {
     setEndDate("");
   };
 
+  // Component for Projected Earnings box
+  const ProjectedEarningsBox = ({ value }: { value: number }) => (
+    <div className="bg-destructive text-destructive-foreground p-4 rounded-lg border-2 border-destructive shadow-lg min-w-[180px]">
+      <p className="text-xs font-medium uppercase tracking-wide opacity-90">Projeção de Ganhos</p>
+      <p className="text-2xl font-bold">€ {value.toFixed(2)}</p>
+      <p className="text-xs opacity-75">(30% do valor total)</p>
+    </div>
+  );
+
   const renderReportContent = () => {
     if (selectedReportType === "payments-by-month" && paymentReportData) {
       const monthLabel = months.find(m => m.value === paymentReportData.referenceMonth.split('-')[1])?.label || "";
@@ -499,13 +508,16 @@ const Relatorios = () => {
 
       return (
         <div className="space-y-6">
-          <div className="flex items-center justify-between">
-            <h3 className="text-xl font-bold">
-              Pagamentos - {monthLabel} {year}
-            </h3>
-            <Button variant="outline" onClick={resetToSelector}>
-              Voltar aos Relatórios
-            </Button>
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex items-center gap-4">
+              <h3 className="text-xl font-bold">
+                Pagamentos - {monthLabel} {year}
+              </h3>
+              <Button variant="outline" onClick={resetToSelector}>
+                Voltar aos Relatórios
+              </Button>
+            </div>
+            <ProjectedEarningsBox value={paymentReportData.projectedEarnings} />
           </div>
 
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
@@ -591,15 +603,21 @@ const Relatorios = () => {
 
     if (!reportData) return null;
 
+    const totalValue = reportData.totalInvoiceValue + reportData.totalManualValue;
+    const projectedEarnings = totalValue * 0.30;
+
     return (
       <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <h3 className="text-xl font-bold">
-            {reportTypes.find(r => r.id === selectedReportType)?.label}
-          </h3>
-          <Button variant="outline" onClick={resetToSelector}>
-            Voltar aos Relatórios
-          </Button>
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex items-center gap-4">
+            <h3 className="text-xl font-bold">
+              {reportTypes.find(r => r.id === selectedReportType)?.label}
+            </h3>
+            <Button variant="outline" onClick={resetToSelector}>
+              Voltar aos Relatórios
+            </Button>
+          </div>
+          <ProjectedEarningsBox value={projectedEarnings} />
         </div>
 
         <div className="grid gap-4 md:grid-cols-3">
