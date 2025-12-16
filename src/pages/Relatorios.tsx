@@ -312,6 +312,29 @@ const Relatorios = () => {
     const doc = new jsPDF();
     const pageWidth = doc.internal.pageSize.getWidth();
 
+    // Helper function to draw the red projected earnings box
+    const drawProjectedEarningsBox = (projectedValue: number, yPosition: number = 40) => {
+      const boxWidth = 60;
+      const boxHeight = 20;
+      const boxX = pageWidth - boxWidth - 14;
+      
+      // Draw red rectangle
+      doc.setFillColor(220, 38, 38); // Red color
+      doc.rect(boxX, yPosition, boxWidth, boxHeight, 'F');
+      
+      // Draw white text inside
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(8);
+      doc.text("PROJEÇÃO DE GANHOS", boxX + boxWidth / 2, yPosition + 7, { align: "center" });
+      doc.setFontSize(12);
+      doc.setFont("helvetica", "bold");
+      doc.text(`€ ${projectedValue.toFixed(2)}`, boxX + boxWidth / 2, yPosition + 15, { align: "center" });
+      
+      // Reset text color and font
+      doc.setTextColor(0, 0, 0);
+      doc.setFont("helvetica", "normal");
+    };
+
     if (selectedReportType === "payments-by-month" && paymentReportData) {
       const monthLabel = months.find(m => m.value === paymentReportData.referenceMonth.split('-')[1])?.label || "";
       const year = paymentReportData.referenceMonth.split('-')[0];
@@ -322,9 +345,16 @@ const Relatorios = () => {
       doc.setFontSize(12);
       doc.text(`Mês de Referência: ${monthLabel} ${year}`, pageWidth / 2, 30, { align: "center" });
       
+      // Draw red projected earnings box
+      drawProjectedEarningsBox(paymentReportData.projectedEarnings, 15);
+      
       doc.setFontSize(10);
       doc.text(`Total em Notas: € ${paymentReportData.invoicesTotal.toFixed(2)}`, 14, 45);
+      doc.setTextColor(220, 38, 38);
+      doc.setFont("helvetica", "bold");
       doc.text(`Projeção de Ganho (30%): € ${paymentReportData.projectedEarnings.toFixed(2)}`, 14, 52);
+      doc.setTextColor(0, 0, 0);
+      doc.setFont("helvetica", "normal");
       doc.text(`Dívida Corte & Cose: € ${paymentReportData.debtsTotal.toFixed(2)}`, 14, 59);
       doc.text(`Total a Receber: € ${paymentReportData.totalToReceive.toFixed(2)}`, 14, 66);
       doc.text(`Total Pago: € ${paymentReportData.totalPaid.toFixed(2)}`, 14, 73);
@@ -350,18 +380,30 @@ const Relatorios = () => {
 
       doc.save(`relatorio_pagamentos_${paymentReportData.referenceMonth}.pdf`);
     } else if (reportData) {
+      const totalValue = reportData.totalInvoiceValue + reportData.totalManualValue;
+      const projectedEarnings = totalValue * 0.30;
+
       doc.setFontSize(18);
       doc.text("Relatório de Notas Fiscais", pageWidth / 2, 20, { align: "center" });
       
       doc.setFontSize(12);
       doc.text(`Período: ${format(new Date(startDate), "dd/MM/yyyy")} a ${format(new Date(endDate), "dd/MM/yyyy")}`, pageWidth / 2, 30, { align: "center" });
       
+      // Draw red projected earnings box
+      drawProjectedEarningsBox(projectedEarnings, 15);
+      
       doc.setFontSize(10);
       doc.text(`Total de Notas: ${reportData.totalInvoiceCount + reportData.totalManualCount}`, 14, 45);
-      doc.text(`Valor Total: € ${(reportData.totalInvoiceValue + reportData.totalManualValue).toFixed(2)}`, 14, 52);
+      doc.text(`Valor Total: € ${totalValue.toFixed(2)}`, 14, 52);
+      doc.setTextColor(220, 38, 38);
+      doc.setFont("helvetica", "bold");
+      doc.text(`Projeção de Ganhos (30%): € ${projectedEarnings.toFixed(2)}`, 14, 59);
+      doc.setTextColor(0, 0, 0);
+      doc.setFont("helvetica", "normal");
 
       let tableData: any[] = [];
       let columns: string[] = [];
+      let tableStartY = 67;
 
       switch (selectedReportType) {
         case "complete":
@@ -417,16 +459,14 @@ const Relatorios = () => {
           break;
         case "payments":
           {
-            const totalValue = reportData.totalInvoiceValue + reportData.totalManualValue;
-            const projectedEarnings = totalValue * 0.30;
             const totalDebt = (reportData.debts || []).reduce((sum, d) => sum + Number(d.amount), 0);
             const totalRevenues = (reportData.revenues || []).reduce((sum, r) => sum + Number(r.amount), 0);
             
-            doc.text(`Projeção de Ganho (30%): € ${projectedEarnings.toFixed(2)}`, 14, 59);
             doc.text(`Total Dívida Corte & Cose: € ${totalDebt.toFixed(2)}`, 14, 66);
             doc.text(`Total a Receber: € ${(projectedEarnings + totalDebt).toFixed(2)}`, 14, 73);
             doc.text(`Total Pago: € ${totalRevenues.toFixed(2)}`, 14, 80);
             doc.text(`Saldo: € ${(projectedEarnings + totalDebt - totalRevenues).toFixed(2)}`, 14, 87);
+            tableStartY = 95;
             
             columns = ["Data", "Valor", "Mês Ref.", "Descrição"];
             tableData = (reportData.revenues || []).map(rev => {
@@ -445,7 +485,7 @@ const Relatorios = () => {
       autoTable(doc, {
         head: [columns],
         body: tableData,
-        startY: selectedReportType === "payments" ? 95 : 60,
+        startY: tableStartY,
         styles: { fontSize: 8 },
         headStyles: { fillColor: [66, 66, 66] },
       });
