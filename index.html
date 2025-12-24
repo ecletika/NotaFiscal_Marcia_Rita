@@ -1,23 +1,27 @@
-import { defineConfig } from "vite";
-import react from "@vitejs/plugin-react-swc";
-import path from "path";
-import { componentTagger } from "lovable-tagger";
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Gestor de Notas Fiscais</title>
+    <meta name="description" content="Sistema de gerenciamento de notas fiscais com leitura automática por IA" />
+    <meta name="author" content="Lovable" />
 
-export default defineConfig(({ mode }) => ({
-  // ⚡ Ajuste base para caminhos relativos no GitHub Pages
-  base: "./",
-  
-  server: {
-    host: "::",
-    port: 8080,
-  },
-  
-  plugins: [react(), mode === "development" && componentTagger()].filter(Boolean),
-  
-  resolve: {
-    alias: {
-      "@": path.resolve(__dirname, "./src"),
-    },
-  },
-}));
+    <!-- Open Graph / Twitter -->
+    <meta property="og:title" content="Gestor de Notas Fiscais" />
+    <meta property="og:description" content="Lovable Generated Project" />
+    <meta property="og:type" content="website" />
+    <meta property="og:image" content="https://lovable.dev/opengraph-image-p98pqg.png" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:site" content="@Lovable" />
+    <meta name="twitter:image" content="https://lovable.dev/opengraph-image-p98pqg.png" />
+  </head>
 
+  <body>
+    <div id="root"></div>
+
+    <!-- ⚡ Caminhos relativos gerados pelo build -->
+    <script type="module" src="./assets/index-XXXXXXX.js"></script>
+    <link rel="stylesheet" href="./assets/index-XXXXXXX.css" />
+  </body>
+</html>
