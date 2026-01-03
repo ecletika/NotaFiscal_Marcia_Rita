@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
-import { Euro, FileText, Plus, TrendingUp, AlertTriangle, History } from "lucide-react";
+import { Euro, FileText, Plus, TrendingUp, Gift, History } from "lucide-react";
 import { format, startOfMonth, endOfMonth, startOfYear, endOfYear, subMonths } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis, ResponsiveContainer } from "recharts";
@@ -23,7 +23,7 @@ const Dashboard = () => {
     projectedEarnings: 0,
     balanceReceivable: 0,
     previousMonthBalance: 0,
-    corteCoseDebt: 0,
+    corteCoseBonus: 0,
   });
   const [chartData, setChartData] = useState<any[]>([]);
 
@@ -183,7 +183,7 @@ const Dashboard = () => {
         projectedEarnings,
         balanceReceivable,
         previousMonthBalance,
-        corteCoseDebt,
+        corteCoseBonus: corteCoseDebt,
       });
 
       // Load chart data for month view (weekly)
@@ -307,45 +307,45 @@ const Dashboard = () => {
         </div>
       </div>
 
-      {/* Stats Cards - Row 1: Valor Total, Notas Fiscais, Entradas Manuais, Dívida Corte & Cose */}
+      {/* Stats Cards - Row 1: Valor Total, Notas Fiscais, Entradas Manuais, Bonus Corte & Cose */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Card>
+        <Card className="glass-card hover:shadow-glow transition-all">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium">Valor Total</CardTitle>
-            <Euro className="h-4 w-4 text-muted-foreground" />
+            <Euro className="h-4 w-4 text-primary" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">€ {stats.totalValue.toFixed(2)}</div>
+            <div className="text-2xl font-bold text-gradient">€ {stats.totalValue.toFixed(2)}</div>
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="glass-card hover:shadow-glow transition-all">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium">Notas Fiscais</CardTitle>
-            <FileText className="h-4 w-4 text-muted-foreground" />
+            <FileText className="h-4 w-4 text-primary" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{stats.invoiceCount}</div>
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="glass-card hover:shadow-glow transition-all">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium">Entradas Manuais</CardTitle>
-            <Plus className="h-4 w-4 text-muted-foreground" />
+            <Plus className="h-4 w-4 text-primary" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{stats.manualEntryCount}</div>
           </CardContent>
         </Card>
 
-        <Card className="border-destructive">
+        <Card className="border-bonus glass-card hover:shadow-glow transition-all">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-destructive">Dívida Corte & Cose</CardTitle>
-            <AlertTriangle className="h-4 w-4 text-destructive" />
+            <CardTitle className="text-sm font-medium text-bonus">Bonus Corte & Cose</CardTitle>
+            <Gift className="h-4 w-4 text-bonus" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-destructive">€ {stats.corteCoseDebt.toFixed(2)}</div>
+            <div className="text-2xl font-bold text-bonus">€ {stats.corteCoseBonus.toFixed(2)}</div>
             <p className="text-xs text-muted-foreground mt-1">
               No período selecionado
             </p>
@@ -355,7 +355,7 @@ const Dashboard = () => {
 
       {/* Stats Cards - Row 2: Receitas do Período, Projeções de Ganhos, Saldo Mês Anterior, Saldo Total */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Card>
+        <Card className="glass-card hover:shadow-glow transition-all">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium">Receitas do Período</CardTitle>
             <Euro className="h-4 w-4 text-primary" />
@@ -371,7 +371,7 @@ const Dashboard = () => {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="glass-card hover:shadow-glow transition-all">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium">Projeção de Ganhos</CardTitle>
             <TrendingUp className="h-4 w-4 text-primary" />
@@ -384,28 +384,28 @@ const Dashboard = () => {
           </CardContent>
         </Card>
 
-        <Card className="border-orange-500/50">
+        <Card className="border-amber-500/50 glass-card hover:shadow-glow transition-all">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-orange-600">Saldo Mês Anterior</CardTitle>
-            <History className="h-4 w-4 text-orange-500" />
+            <CardTitle className="text-sm font-medium text-amber-600">Saldo Mês Anterior</CardTitle>
+            <History className="h-4 w-4 text-amber-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-orange-600">€ {stats.previousMonthBalance.toFixed(2)}</div>
+            <div className="text-2xl font-bold text-amber-600">€ {stats.previousMonthBalance.toFixed(2)}</div>
             <p className="text-xs text-muted-foreground mt-1">
               Pendente de {previousMonthName}
             </p>
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="border-destructive/50 glass-card hover:shadow-glow transition-all">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium">Saldo Total a Receber</CardTitle>
+            <CardTitle className="text-sm font-medium text-destructive">Saldo Total a Receber</CardTitle>
             <TrendingUp className="h-4 w-4 text-destructive" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-destructive">€ {stats.balanceReceivable.toFixed(2)}</div>
             <p className="text-xs text-muted-foreground mt-1">
-              Projeção + Dívida - Receitas
+              Projeção + Bonus - Receitas
             </p>
           </CardContent>
         </Card>

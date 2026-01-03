@@ -51,6 +51,10 @@ export default {
           DEFAULT: "hsl(var(--success))",
           foreground: "hsl(var(--success-foreground))",
         },
+        bonus: {
+          DEFAULT: "hsl(var(--bonus))",
+          foreground: "hsl(var(--bonus-foreground))",
+        },
         chart: {
           "1": "hsl(var(--chart-1))",
           "2": "hsl(var(--chart-2))",
