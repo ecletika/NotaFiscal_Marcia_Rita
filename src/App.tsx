@@ -13,6 +13,7 @@ import Relatorios from "./pages/Relatorios";
 import Backup from "./pages/Backup";
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
+import SharedReport from "./pages/SharedReport";
 
 const queryClient = new QueryClient();
 
@@ -24,6 +25,7 @@ const App = () => (
       <BrowserRouter>
         <Routes>
           <Route path="/auth" element={<Auth />} />
+          <Route path="/report/:id" element={<SharedReport />} />
           <Route element={<Layout><Dashboard /></Layout>} path="/" />
           <Route element={<Layout><Upload /></Layout>} path="/upload" />
           <Route element={<Layout><EntradaManual /></Layout>} path="/entrada-manual" />

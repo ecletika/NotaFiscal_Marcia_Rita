@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { FileText, Plus, Euro, Download, Phone, User, CreditCard, Calendar, ChevronRight, Image, ExternalLink } from "lucide-react";
+import { FileText, Plus, Euro, Download, Phone, User, CreditCard, Calendar, ChevronRight, Image, ExternalLink, Share2, Copy, Check, Loader2 } from "lucide-react";
 import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import jsPDF from "jspdf";
@@ -87,6 +87,9 @@ const Relatorios = () => {
   const [paymentMonthDialogOpen, setPaymentMonthDialogOpen] = useState(false);
   const [paymentMonth, setPaymentMonth] = useState<string>("");
   const [paymentYear, setPaymentYear] = useState<string>(new Date().getFullYear().toString());
+  const [isSharing, setIsSharing] = useState(false);
+  const [shareUrl, setShareUrl] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
   const { toast } = useToast();
 
   const months = [
@@ -551,6 +554,98 @@ const Relatorios = () => {
     setPaymentReportData(null);
     setStartDate("");
     setEndDate("");
+    setShareUrl(null);
+    setCopied(false);
+  };
+
+  const shareReport = async () => {
+    if (!selectedReportType) return;
+    
+    setIsSharing(true);
+    setShareUrl(null);
+    setCopied(false);
+
+    try {
+      const { data: userData } = await supabase.auth.getUser();
+      if (!userData.user) {
+        toast({
+          title: "Erro",
+          description: "Você precisa estar logado para compartilhar",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      let reportDataToShare: any = {};
+      let reportTitle = "";
+
+      if (selectedReportType === "payments-by-month" && paymentReportData) {
+        const monthLabel = months.find(m => m.value === paymentReportData.referenceMonth.split('-')[1])?.label || "";
+        const year = paymentReportData.referenceMonth.split('-')[0];
+        reportTitle = `Pagamentos - ${monthLabel} ${year}`;
+        reportDataToShare = paymentReportData;
+      } else if (reportData) {
+        reportTitle = `${reportTypes.find(r => r.id === selectedReportType)?.label} - ${format(new Date(startDate), "dd/MM/yyyy")} a ${format(new Date(endDate), "dd/MM/yyyy")}`;
+        reportDataToShare = reportData;
+      } else {
+        toast({
+          title: "Erro",
+          description: "Nenhum relatório para compartilhar",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from("shared_reports")
+        .insert({
+          user_id: userData.user.id,
+          report_type: selectedReportType,
+          report_title: reportTitle,
+          report_data: reportDataToShare,
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      const url = `${window.location.origin}/report/${data.id}`;
+      setShareUrl(url);
+
+      toast({
+        title: "Link criado!",
+        description: "O link do relatório foi gerado. Válido por 30 dias.",
+      });
+    } catch (error) {
+      console.error("Error sharing report:", error);
+      toast({
+        title: "Erro",
+        description: "Falha ao gerar link do relatório",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSharing(false);
+    }
+  };
+
+  const copyShareUrl = async () => {
+    if (!shareUrl) return;
+    
+    try {
+      await navigator.clipboard.writeText(shareUrl);
+      setCopied(true);
+      toast({
+        title: "Copiado!",
+        description: "Link copiado para a área de transferência",
+      });
+      setTimeout(() => setCopied(false), 2000);
+    } catch (error) {
+      toast({
+        title: "Erro",
+        description: "Falha ao copiar link",
+        variant: "destructive",
+      });
+    }
   };
 
   // Component for Projected Earnings box
@@ -652,10 +747,35 @@ const Relatorios = () => {
                 </div>
               )}
 
-              <Button onClick={exportToPDF} className="w-full mt-4">
-                <Download className="h-4 w-4 mr-2" />
-                Exportar para PDF
-              </Button>
+              <div className="flex flex-col gap-3 mt-4">
+                <Button onClick={exportToPDF} className="w-full">
+                  <Download className="h-4 w-4 mr-2" />
+                  Exportar para PDF
+                </Button>
+                
+                <Button onClick={shareReport} variant="outline" className="w-full" disabled={isSharing}>
+                  {isSharing ? (
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <Share2 className="h-4 w-4 mr-2" />
+                  )}
+                  {isSharing ? "Gerando link..." : "Gerar Link para Compartilhar"}
+                </Button>
+
+                {shareUrl && (
+                  <div className="flex gap-2 items-center p-3 bg-muted rounded-lg">
+                    <input
+                      type="text"
+                      value={shareUrl}
+                      readOnly
+                      className="flex-1 bg-transparent text-sm outline-none truncate"
+                    />
+                    <Button size="sm" variant="ghost" onClick={copyShareUrl}>
+                      {copied ? <Check className="h-4 w-4 text-bonus" /> : <Copy className="h-4 w-4" />}
+                    </Button>
+                  </div>
+                )}
+              </div>
             </CardContent>
           </Card>
         </div>
@@ -729,10 +849,35 @@ const Relatorios = () => {
             <CardTitle>Prévia do Relatório</CardTitle>
           </CardHeader>
           <CardContent>
-            <Button onClick={exportToPDF} className="w-full mb-4">
-              <Download className="h-4 w-4 mr-2" />
-              Exportar para PDF
-            </Button>
+            <div className="flex flex-col sm:flex-row gap-3 mb-4">
+              <Button onClick={exportToPDF} className="flex-1">
+                <Download className="h-4 w-4 mr-2" />
+                Exportar para PDF
+              </Button>
+              
+              <Button onClick={shareReport} variant="outline" className="flex-1" disabled={isSharing}>
+                {isSharing ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <Share2 className="h-4 w-4 mr-2" />
+                )}
+                {isSharing ? "Gerando..." : "Gerar Link"}
+              </Button>
+            </div>
+
+            {shareUrl && (
+              <div className="flex gap-2 items-center p-3 bg-muted rounded-lg mb-4">
+                <input
+                  type="text"
+                  value={shareUrl}
+                  readOnly
+                  className="flex-1 bg-transparent text-sm outline-none truncate"
+                />
+                <Button size="sm" variant="ghost" onClick={copyShareUrl}>
+                  {copied ? <Check className="h-4 w-4 text-bonus" /> : <Copy className="h-4 w-4" />}
+                </Button>
+              </div>
+            )}
 
             <div className="border rounded-lg p-4 max-h-96 overflow-auto">
               {selectedReportType === "complete" && (
