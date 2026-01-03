@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { FileText, Plus, Euro, Download, Phone, User, CreditCard, Calendar, ChevronRight } from "lucide-react";
+import { FileText, Plus, Euro, Download, Phone, User, CreditCard, Calendar, ChevronRight, Image, ExternalLink } from "lucide-react";
 import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import jsPDF from "jspdf";
@@ -32,6 +32,7 @@ interface ReportData {
     invoiceNumber: string;
     contactName: string | null;
     phoneNumber: string | null;
+    imageUrl: string | null;
   }>;
   invoices: Array<{
     id: string;
@@ -40,6 +41,7 @@ interface ReportData {
     total_value: number;
     contact_name: string | null;
     phone_number: string | null;
+    image_url: string | null;
     invoice_items: any[];
   }>;
   revenues?: Array<{
@@ -259,6 +261,7 @@ const Relatorios = () => {
           invoiceNumber: inv.invoice_number,
           contactName: inv.contact_name,
           phoneNumber: inv.phone_number,
+          imageUrl: inv.image_url,
         }))
       );
 
@@ -355,7 +358,9 @@ const Relatorios = () => {
       doc.text(`Projeção de Ganho (30%): € ${paymentReportData.projectedEarnings.toFixed(2)}`, 14, 52);
       doc.setTextColor(0, 0, 0);
       doc.setFont("helvetica", "normal");
-      doc.text(`Dívida Corte & Cose: € ${paymentReportData.debtsTotal.toFixed(2)}`, 14, 59);
+      doc.setTextColor(34, 197, 94); // Green color for Bonus
+      doc.text(`Bonus Corte & Cose: € ${paymentReportData.debtsTotal.toFixed(2)}`, 14, 59);
+      doc.setTextColor(0, 0, 0);
       doc.text(`Total a Receber: € ${paymentReportData.totalToReceive.toFixed(2)}`, 14, 66);
       doc.text(`Total Pago: € ${paymentReportData.totalPaid.toFixed(2)}`, 14, 73);
       doc.text(`Saldo Pendente: € ${paymentReportData.balance.toFixed(2)}`, 14, 80);
@@ -407,15 +412,29 @@ const Relatorios = () => {
 
       switch (selectedReportType) {
         case "complete":
-          columns = ["Data", "Nº Nota", "Descrição", "Valor", "Contacto", "Telefone"];
-          tableData = reportData.items.map(item => [
-            item.date,
-            item.invoiceNumber,
-            item.description,
-            `€ ${item.value.toFixed(2)}`,
-            item.contactName || "-",
-            item.phoneNumber || "-",
-          ]);
+          columns = ["Data", "Nº Nota", "Descrição", "Valor", "Contacto", "Foto"];
+          tableData = reportData.items.map(item => {
+            // Encurtar link da foto
+            let fotoLink = "-";
+            if (item.imageUrl) {
+              try {
+                const url = new URL(item.imageUrl);
+                const pathParts = url.pathname.split('/');
+                const filename = pathParts[pathParts.length - 1];
+                fotoLink = filename.length > 15 ? filename.substring(0, 12) + '...' : filename;
+              } catch {
+                fotoLink = item.imageUrl.length > 15 ? item.imageUrl.substring(0, 12) + '...' : item.imageUrl;
+              }
+            }
+            return [
+              item.date,
+              item.invoiceNumber,
+              item.description,
+              `€ ${item.value.toFixed(2)}`,
+              item.contactName || "-",
+              fotoLink,
+            ];
+          });
           break;
         case "number-value":
           columns = ["Nº Nota", "Data", "Valor Total"];
@@ -462,7 +481,9 @@ const Relatorios = () => {
             const totalDebt = (reportData.debts || []).reduce((sum, d) => sum + Number(d.amount), 0);
             const totalRevenues = (reportData.revenues || []).reduce((sum, r) => sum + Number(r.amount), 0);
             
-            doc.text(`Total Dívida Corte & Cose: € ${totalDebt.toFixed(2)}`, 14, 66);
+            doc.setTextColor(34, 197, 94); // Green color for Bonus
+            doc.text(`Total Bonus Corte & Cose: € ${totalDebt.toFixed(2)}`, 14, 66);
+            doc.setTextColor(0, 0, 0);
             doc.text(`Total a Receber: € ${(projectedEarnings + totalDebt).toFixed(2)}`, 14, 73);
             doc.text(`Total Pago: € ${totalRevenues.toFixed(2)}`, 14, 80);
             doc.text(`Saldo: € ${(projectedEarnings + totalDebt - totalRevenues).toFixed(2)}`, 14, 87);
@@ -717,20 +738,38 @@ const Relatorios = () => {
               {selectedReportType === "complete" && (
                 <div className="space-y-2">
                   {reportData.items.map((item, index) => (
-                    <div key={index} className="flex justify-between items-center p-3 border rounded-lg">
+                    <div key={index} className="flex justify-between items-center p-3 border rounded-lg glass-card">
                       <div className="flex-1">
                         <p className="font-medium">{item.description}</p>
                         <p className="text-sm text-muted-foreground">
                           {item.date} • Nota: {item.invoiceNumber}
                         </p>
-                        {(item.contactName || item.phoneNumber) && (
-                          <p className="text-xs text-muted-foreground flex items-center gap-2 mt-1">
-                            {item.contactName && <span className="flex items-center gap-1"><User className="h-3 w-3" />{item.contactName}</span>}
-                            {item.phoneNumber && <span className="flex items-center gap-1"><Phone className="h-3 w-3" />{item.phoneNumber}</span>}
-                          </p>
-                        )}
+                        <div className="flex items-center gap-3 mt-1 flex-wrap">
+                          {item.contactName && (
+                            <span className="text-xs text-muted-foreground flex items-center gap-1">
+                              <User className="h-3 w-3" />{item.contactName}
+                            </span>
+                          )}
+                          {item.phoneNumber && (
+                            <span className="text-xs text-muted-foreground flex items-center gap-1">
+                              <Phone className="h-3 w-3" />{item.phoneNumber}
+                            </span>
+                          )}
+                          {item.imageUrl && (
+                            <a 
+                              href={item.imageUrl} 
+                              target="_blank" 
+                              rel="noopener noreferrer"
+                              className="text-xs text-primary hover:text-primary/80 flex items-center gap-1 underline"
+                            >
+                              <Image className="h-3 w-3" />
+                              Ver foto
+                              <ExternalLink className="h-2.5 w-2.5" />
+                            </a>
+                          )}
+                        </div>
                       </div>
-                      <p className="font-bold text-accent">€ {item.value.toFixed(2)}</p>
+                      <p className="font-bold text-primary">€ {item.value.toFixed(2)}</p>
                     </div>
                   ))}
                 </div>
