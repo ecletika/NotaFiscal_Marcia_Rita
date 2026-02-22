@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
-import { Euro, FileText, Plus, TrendingUp, Gift, History } from "lucide-react";
+import { Euro, FileText, Plus, TrendingUp, Gift, History, FolderOpen } from "lucide-react";
 import { format, startOfMonth, endOfMonth, startOfYear, endOfYear, subMonths } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis, ResponsiveContainer } from "recharts";
@@ -26,9 +26,11 @@ const Dashboard = () => {
     corteCoseBonus: 0,
   });
   const [chartData, setChartData] = useState<any[]>([]);
+  const [pendingGroups, setPendingGroups] = useState<any[]>([]);
 
   useEffect(() => {
     loadDashboardData();
+    loadPendingGroups();
   }, [period, selectedMonth, selectedYear]);
 
   const loadDashboardData = async () => {
@@ -238,6 +240,47 @@ const Dashboard = () => {
     }
   };
 
+  const loadPendingGroups = async () => {
+    const { data: groups } = await supabase
+      .from("invoice_groups")
+      .select("*")
+      .eq("is_completed", false)
+      .order("created_at", { ascending: false });
+
+    if (!groups) {
+      setPendingGroups([]);
+      return;
+    }
+
+    const result = [];
+    for (const group of groups) {
+      const { data: items } = await supabase
+        .from("invoice_group_items")
+        .select("invoice_id")
+        .eq("group_id", group.id);
+
+      let partialValue = 0;
+      for (const item of items || []) {
+        const { data: inv } = await supabase
+          .from("invoices")
+          .select("total_value")
+          .eq("id", item.invoice_id)
+          .single();
+        if (inv) partialValue += Number(inv.total_value) * 0.30;
+      }
+
+      result.push({
+        id: group.id,
+        name: group.name,
+        total_value: Number(group.total_value),
+        partial_value: partialValue,
+        balance: Number(group.total_value) - partialValue,
+      });
+    }
+
+    setPendingGroups(result);
+  };
+
   const months = [
     "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
     "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"
@@ -410,6 +453,43 @@ const Dashboard = () => {
           </CardContent>
         </Card>
       </div>
+
+      {/* Pending Groups */}
+      {pendingGroups.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <FolderOpen className="h-5 w-5 text-primary" />
+              Grupos Pendentes
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              {pendingGroups.map(group => (
+                <div key={group.id} className="flex items-center justify-between p-3 border rounded-lg">
+                  <span className="font-medium">{group.name}</span>
+                  <div className="flex gap-6 text-sm">
+                    <div>
+                      <span className="text-muted-foreground">Total: </span>
+                      <span className="font-bold">€ {group.total_value.toFixed(2)}</span>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground">Parcial: </span>
+                      <span className="font-bold text-primary">€ {group.partial_value.toFixed(2)}</span>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground">Saldo: </span>
+                      <span className={`font-bold ${group.balance > 0 ? "text-destructive" : "text-green-600"}`}>
+                        € {group.balance.toFixed(2)}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Chart for monthly view (weekly) */}
       {period === "month" && chartData.length > 0 && (

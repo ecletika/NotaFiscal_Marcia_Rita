@@ -210,14 +210,47 @@ const NotasFiscais = () => {
         })
         .eq("id", invoiceId);
 
-      for (const item of editData.items) {
+      // Get current items from DB to find deleted ones
+      const { data: currentDbItems } = await supabase
+        .from("invoice_items")
+        .select("id")
+        .eq("invoice_id", invoiceId);
+
+      const editItemIds = editData.items
+        .filter((item: any) => !item.id.startsWith("new-"))
+        .map((item: any) => item.id);
+
+      // Delete removed items
+      const deletedIds = (currentDbItems || [])
+        .map((i: any) => i.id)
+        .filter((id: string) => !editItemIds.includes(id));
+
+      if (deletedIds.length > 0) {
         await supabase
           .from("invoice_items")
-          .update({
-            description: item.description,
-            value: item.value,
-          })
-          .eq("id", item.id);
+          .delete()
+          .in("id", deletedIds);
+      }
+
+      // Update existing and insert new items
+      for (const item of editData.items) {
+        if (item.id.startsWith("new-")) {
+          await supabase
+            .from("invoice_items")
+            .insert({
+              invoice_id: invoiceId,
+              description: item.description,
+              value: item.value,
+            });
+        } else {
+          await supabase
+            .from("invoice_items")
+            .update({
+              description: item.description,
+              value: item.value,
+            })
+            .eq("id", item.id);
+        }
       }
 
       toast({

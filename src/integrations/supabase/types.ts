@@ -44,6 +44,72 @@ export type Database = {
         }
         Relationships: []
       }
+      invoice_group_items: {
+        Row: {
+          created_at: string
+          group_id: string
+          id: string
+          invoice_id: string
+        }
+        Insert: {
+          created_at?: string
+          group_id: string
+          id?: string
+          invoice_id: string
+        }
+        Update: {
+          created_at?: string
+          group_id?: string
+          id?: string
+          invoice_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "invoice_group_items_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "invoice_groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invoice_group_items_invoice_id_fkey"
+            columns: ["invoice_id"]
+            isOneToOne: false
+            referencedRelation: "invoices"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      invoice_groups: {
+        Row: {
+          created_at: string
+          id: string
+          is_completed: boolean
+          name: string
+          total_value: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_completed?: boolean
+          name: string
+          total_value?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_completed?: boolean
+          name?: string
+          total_value?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       invoice_items: {
         Row: {
           created_at: string | null

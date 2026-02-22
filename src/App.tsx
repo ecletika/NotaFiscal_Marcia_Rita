@@ -15,6 +15,7 @@ import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
 import SharedReport from "./pages/SharedReport";
 import LinksCompartilhados from "./pages/LinksCompartilhados";
+import AgrupamentoNotas from "./pages/AgrupamentoNotas";
 
 const queryClient = new QueryClient();
 
@@ -33,6 +34,7 @@ const App = () => (
           <Route element={<Layout><NotasFiscais /></Layout>} path="/notas-fiscais" />
           <Route element={<Layout><Receitas /></Layout>} path="/receitas" />
           <Route element={<Layout><Relatorios /></Layout>} path="/relatorios" />
+          <Route element={<Layout><AgrupamentoNotas /></Layout>} path="/ag-nota" />
           <Route element={<Layout><LinksCompartilhados /></Layout>} path="/links" />
           <Route element={<Layout><Backup /></Layout>} path="/backup" />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}

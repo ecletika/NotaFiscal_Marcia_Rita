@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { FileText, Plus, Euro, Download, Phone, User, CreditCard, Calendar, ChevronRight, Image, ExternalLink, Share2, Copy, Check, Loader2 } from "lucide-react";
+import { FileText, Plus, Euro, Download, Phone, User, CreditCard, Calendar, ChevronRight, Image, ExternalLink, Share2, Copy, Check, Loader2, FolderOpen } from "lucide-react";
 import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, parseISO, addDays } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import jsPDF from "jspdf";
@@ -76,7 +76,7 @@ interface PaymentReportData {
   balance: number;
 }
 
-type ReportType = "complete" | "number-value" | "value-only" | "number-items-value" | "contacts" | "payments" | "payments-by-month";
+type ReportType = "complete" | "number-value" | "value-only" | "number-items-value" | "contacts" | "payments" | "payments-by-month" | "group";
 
 const Relatorios = () => {
   const [startDate, setStartDate] = useState("");
@@ -93,6 +93,10 @@ const Relatorios = () => {
   const [copied, setCopied] = useState(false);
   const [shareDays, setShareDays] = useState("30");
   const [shareDialogOpen, setShareDialogOpen] = useState(false);
+  const [groupSearchQuery, setGroupSearchQuery] = useState("");
+  const [groupSearchResults, setGroupSearchResults] = useState<any[]>([]);
+  const [selectedGroupData, setSelectedGroupData] = useState<any>(null);
+  const [groupDialogOpen, setGroupDialogOpen] = useState(false);
   const { toast } = useToast();
 
   const months = [
@@ -316,7 +320,7 @@ const Relatorios = () => {
   };
 
   const exportToPDF = () => {
-    if (!reportData && !paymentReportData) return;
+    if (!reportData && !paymentReportData && !selectedGroupData) return;
 
     const doc = new jsPDF();
     const pageWidth = doc.internal.pageSize.getWidth();
@@ -343,6 +347,48 @@ const Relatorios = () => {
       doc.setTextColor(0, 0, 0);
       doc.setFont("helvetica", "normal");
     };
+
+    // Group report PDF
+    if (selectedReportType === "group" && selectedGroupData) {
+      doc.setFontSize(18);
+      doc.text(`Relatório de Grupo: ${selectedGroupData.name}`, pageWidth / 2, 20, { align: "center" });
+
+      doc.setFontSize(10);
+      doc.text(`Valor Total do Grupo: € ${selectedGroupData.total_value.toFixed(2)}`, 14, 35);
+      doc.text(`Total Notas: € ${selectedGroupData.invoicesTotal.toFixed(2)}`, 14, 42);
+      doc.setTextColor(220, 38, 38);
+      doc.setFont("helvetica", "bold");
+      doc.text(`Valor Parcial (30%): € ${selectedGroupData.partialValue.toFixed(2)}`, 14, 49);
+      doc.setTextColor(0, 0, 0);
+      doc.setFont("helvetica", "normal");
+      doc.text(`Saldo: € ${selectedGroupData.balance.toFixed(2)}`, 14, 56);
+      doc.text(`Status: ${selectedGroupData.is_completed ? "Concluído" : "Pendente"}`, 14, 63);
+
+      const tableData = selectedGroupData.invoices.map((inv: any) => [
+        inv.invoice_number,
+        format(new Date(inv.delivery_date), "dd/MM/yyyy"),
+        `€ ${Number(inv.total_value).toFixed(2)}`,
+        `€ ${(Number(inv.total_value) * 0.30).toFixed(2)}`,
+        inv.contact_name || "-",
+      ]);
+
+      autoTable(doc, {
+        head: [["Nº Nota", "Data", "Valor", "30%", "Contacto"]],
+        body: tableData,
+        startY: 70,
+        styles: { fontSize: 8 },
+        headStyles: { fillColor: [66, 66, 66] },
+      });
+
+      const finalY = (doc as any).lastAutoTable.finalY || 70;
+      doc.setFontSize(8);
+      doc.text(`Gerado em: ${format(new Date(), "dd/MM/yyyy HH:mm")}`, 14, finalY + 10);
+
+      doc.save(`relatorio_grupo_${selectedGroupData.name.replace(/\s+/g, '_')}.pdf`);
+
+      toast({ title: "Sucesso", description: "PDF exportado com sucesso" });
+      return;
+    }
 
     if (selectedReportType === "payments-by-month" && paymentReportData) {
       const monthLabel = months.find(m => m.value === paymentReportData.referenceMonth.split('-')[1])?.label || "";
@@ -538,6 +584,7 @@ const Relatorios = () => {
     { id: "contacts", label: "Contactos", description: "Relatório de telefones e nomes", icon: Phone },
     { id: "payments", label: "Pagamentos", description: "Projeção + Dívida e pagamentos do período", icon: CreditCard },
     { id: "payments-by-month", label: "Pagamentos por Mês", description: "Ver todos os pagamentos de um mês específico", icon: Calendar },
+    { id: "group", label: "Relatório de Grupo", description: "Buscar e ver relatório de um grupo de notas", icon: FolderOpen },
   ];
 
   const handleReportSelect = (reportId: ReportType) => {
@@ -547,6 +594,8 @@ const Relatorios = () => {
     
     if (reportId === "payments-by-month") {
       setPaymentMonthDialogOpen(true);
+    } else if (reportId === "group") {
+      setGroupDialogOpen(true);
     }
   };
 
@@ -555,10 +604,69 @@ const Relatorios = () => {
     setSelectedReportType(null);
     setReportData(null);
     setPaymentReportData(null);
+    setSelectedGroupData(null);
     setStartDate("");
     setEndDate("");
     setShareUrl(null);
     setCopied(false);
+  };
+
+  const searchGroups = async (query: string) => {
+    setGroupSearchQuery(query);
+    if (query.length < 1) {
+      setGroupSearchResults([]);
+      return;
+    }
+
+    const { data } = await supabase
+      .from("invoice_groups")
+      .select("id, name, total_value, is_completed")
+      .ilike("name", `%${query}%`)
+      .limit(10);
+
+    setGroupSearchResults(data || []);
+  };
+
+  const loadGroupReport = async (groupId: string) => {
+    const { data: group } = await supabase
+      .from("invoice_groups")
+      .select("*")
+      .eq("id", groupId)
+      .single();
+
+    if (!group) return;
+
+    const { data: items } = await supabase
+      .from("invoice_group_items")
+      .select("invoice_id")
+      .eq("group_id", groupId);
+
+    const invoices: any[] = [];
+    for (const item of items || []) {
+      const { data: inv } = await supabase
+        .from("invoices")
+        .select("*, invoice_items(*)")
+        .eq("id", item.invoice_id)
+        .single();
+      if (inv) invoices.push(inv);
+    }
+
+    const invoicesTotal = invoices.reduce((sum, inv) => sum + Number(inv.total_value), 0);
+    const partialValue = invoicesTotal * 0.30;
+
+    setSelectedGroupData({
+      ...group,
+      total_value: Number(group.total_value),
+      invoices,
+      invoicesTotal,
+      partialValue,
+      balance: Number(group.total_value) - partialValue,
+    });
+
+    setGroupDialogOpen(false);
+    setGroupSearchQuery("");
+    setGroupSearchResults([]);
+    setShowReportSelector(false);
   };
 
   const openShareDialog = () => {
@@ -670,6 +778,101 @@ const Relatorios = () => {
   );
 
   const renderReportContent = () => {
+    // Group report
+    if (selectedReportType === "group" && selectedGroupData) {
+      return (
+        <div className="space-y-6">
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex items-center gap-4">
+              <h3 className="text-xl font-bold">
+                Grupo: {selectedGroupData.name}
+              </h3>
+              <Button variant="outline" onClick={resetToSelector}>
+                Voltar aos Relatórios
+              </Button>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <Card>
+              <CardContent className="pt-4">
+                <p className="text-xs text-muted-foreground">Valor Total do Grupo</p>
+                <p className="text-lg font-bold">€ {selectedGroupData.total_value.toFixed(2)}</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="pt-4">
+                <p className="text-xs text-muted-foreground">Total Notas</p>
+                <p className="text-lg font-bold">€ {selectedGroupData.invoicesTotal.toFixed(2)}</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="pt-4">
+                <p className="text-xs text-muted-foreground">Valor Parcial (30%)</p>
+                <p className="text-lg font-bold text-primary">€ {selectedGroupData.partialValue.toFixed(2)}</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="pt-4">
+                <p className="text-xs text-muted-foreground">Saldo</p>
+                <p className={`text-lg font-bold ${selectedGroupData.balance > 0 ? "text-destructive" : "text-green-600"}`}>
+                  € {selectedGroupData.balance.toFixed(2)}
+                </p>
+              </CardContent>
+            </Card>
+          </div>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Notas do Grupo ({selectedGroupData.invoices.length})</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                {selectedGroupData.invoices.map((inv: any) => (
+                  <div key={inv.id} className="border rounded-lg p-3">
+                    <div className="flex justify-between items-start mb-2">
+                      <div>
+                        <p className="font-bold">Nota {inv.invoice_number}</p>
+                        <p className="text-sm text-muted-foreground">
+                          Entrega: {format(new Date(inv.delivery_date), "dd/MM/yyyy")}
+                        </p>
+                        {inv.contact_name && <p className="text-sm">{inv.contact_name}</p>}
+                      </div>
+                      <div className="text-right">
+                        <p className="font-bold">€ {Number(inv.total_value).toFixed(2)}</p>
+                        <p className="text-sm text-primary">30%: € {(Number(inv.total_value) * 0.30).toFixed(2)}</p>
+                      </div>
+                    </div>
+                    {inv.invoice_items?.length > 0 && (
+                      <div className="mt-2 pt-2 border-t space-y-1">
+                        {inv.invoice_items.map((item: any) => (
+                          <div key={item.id} className="flex justify-between text-sm text-muted-foreground">
+                            <span>{item.description}</span>
+                            <span>€ {Number(item.value).toFixed(2)}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+
+          <div className="flex gap-2">
+            <Button onClick={exportToPDF}>
+              <Download className="h-4 w-4 mr-2" />
+              Exportar PDF
+            </Button>
+            <Button variant="outline" onClick={openShareDialog}>
+              <Share2 className="h-4 w-4 mr-2" />
+              Compartilhar
+            </Button>
+          </div>
+        </div>
+      );
+    }
+
     if (selectedReportType === "payments-by-month" && paymentReportData) {
       const monthLabel = months.find(m => m.value === paymentReportData.referenceMonth.split('-')[1])?.label || "";
       const year = paymentReportData.referenceMonth.split('-')[0];
@@ -1245,6 +1448,42 @@ const Relatorios = () => {
                   </>
                 )}
               </Button>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Group Search Dialog */}
+      <Dialog open={groupDialogOpen} onOpenChange={setGroupDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Pesquisar Grupo</DialogTitle>
+            <DialogDescription>
+              Pesquise o grupo para gerar o relatório
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 pt-4">
+            <Input
+              placeholder="Nome do grupo..."
+              value={groupSearchQuery}
+              onChange={e => searchGroups(e.target.value)}
+            />
+            {groupSearchResults.length > 0 && (
+              <div className="space-y-1 max-h-60 overflow-y-auto">
+                {groupSearchResults.map(group => (
+                  <div
+                    key={group.id}
+                    className="flex justify-between items-center p-3 hover:bg-muted rounded cursor-pointer"
+                    onClick={() => loadGroupReport(group.id)}
+                  >
+                    <div>
+                      <span className="font-medium">{group.name}</span>
+                      {group.is_completed && <span className="ml-2 text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded">Concluído</span>}
+                    </div>
+                    <span className="font-bold">€ {Number(group.total_value).toFixed(2)}</span>
+                  </div>
+                ))}
+              </div>
             )}
           </div>
         </DialogContent>
