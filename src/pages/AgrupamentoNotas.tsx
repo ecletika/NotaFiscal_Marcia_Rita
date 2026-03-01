@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import {
-  Plus, Trash2, Search, CheckCircle, Pencil, Save, X, ChevronDown, ChevronUp, FolderOpen,
+  Plus, Trash2, Search, CheckCircle, Pencil, Save, X, ChevronDown, ChevronUp, FolderOpen, Image, Upload,
 } from "lucide-react";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
@@ -29,6 +29,7 @@ interface InvoiceGroup {
   total_value: number;
   is_completed: boolean;
   created_at: string;
+  image_url: string | null;
   invoices: GroupInvoice[];
 }
 
@@ -37,6 +38,7 @@ const AgrupamentoNotas = () => {
   const [newGroupDialogOpen, setNewGroupDialogOpen] = useState(false);
   const [newGroupName, setNewGroupName] = useState("");
   const [newGroupTotal, setNewGroupTotal] = useState("");
+  const [newGroupImage, setNewGroupImage] = useState<File | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [addInvoiceGroupId, setAddInvoiceGroupId] = useState<string | null>(null);
@@ -44,6 +46,11 @@ const AgrupamentoNotas = () => {
   const [editingGroupId, setEditingGroupId] = useState<string | null>(null);
   const [editGroupName, setEditGroupName] = useState("");
   const [editGroupTotal, setEditGroupTotal] = useState("");
+  const [imageViewerGroup, setImageViewerGroup] = useState<InvoiceGroup | null>(null);
+  const [viewerSearchQuery, setViewerSearchQuery] = useState("");
+  const [viewerSearchResults, setViewerSearchResults] = useState<any[]>([]);
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -93,11 +100,33 @@ const AgrupamentoNotas = () => {
         total_value: Number(group.total_value),
         is_completed: group.is_completed,
         created_at: group.created_at,
+        image_url: group.image_url,
         invoices,
       });
     }
 
     setGroups(groupsWithInvoices);
+  };
+
+  const uploadImage = async (file: File): Promise<string | null> => {
+    const fileExt = file.name.split(".").pop();
+    const fileName = `group_${Date.now()}.${fileExt}`;
+    const filePath = `groups/${fileName}`;
+
+    const { error } = await supabase.storage
+      .from("invoices")
+      .upload(filePath, file);
+
+    if (error) {
+      console.error("Upload error:", error);
+      return null;
+    }
+
+    const { data } = supabase.storage
+      .from("invoices")
+      .getPublicUrl(filePath);
+
+    return data.publicUrl;
   };
 
   const createGroup = async () => {
@@ -109,11 +138,20 @@ const AgrupamentoNotas = () => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
 
+    setUploadingImage(true);
+    let imageUrl: string | null = null;
+    if (newGroupImage) {
+      imageUrl = await uploadImage(newGroupImage);
+    }
+
     const { error } = await supabase.from("invoice_groups").insert({
       user_id: user.id,
       name: newGroupName.trim(),
       total_value: Number(newGroupTotal) || 0,
+      image_url: imageUrl,
     });
+
+    setUploadingImage(false);
 
     if (error) {
       toast({ title: "Erro", description: "Falha ao criar grupo", variant: "destructive" });
@@ -123,6 +161,7 @@ const AgrupamentoNotas = () => {
     toast({ title: "Sucesso", description: "Grupo criado" });
     setNewGroupName("");
     setNewGroupTotal("");
+    setNewGroupImage(null);
     setNewGroupDialogOpen(false);
     loadGroups();
   };
@@ -155,10 +194,16 @@ const AgrupamentoNotas = () => {
     loadGroups();
   };
 
-  const searchInvoices = async (query: string) => {
-    setSearchQuery(query);
+  const searchInvoices = async (query: string, forViewer = false) => {
+    if (forViewer) {
+      setViewerSearchQuery(query);
+    } else {
+      setSearchQuery(query);
+    }
+
     if (query.length < 1) {
-      setSearchResults([]);
+      if (forViewer) setViewerSearchResults([]);
+      else setSearchResults([]);
       return;
     }
 
@@ -169,10 +214,11 @@ const AgrupamentoNotas = () => {
       .or(`invoice_number.ilike.%${query}%,contact_name.ilike.%${query}%`)
       .limit(10);
 
-    setSearchResults(data || []);
+    if (forViewer) setViewerSearchResults(data || []);
+    else setSearchResults(data || []);
   };
 
-  const addInvoiceToGroup = async (groupId: string, invoiceId: string) => {
+  const addInvoiceToGroup = async (groupId: string, invoiceId: string, forViewer = false) => {
     const { error } = await supabase.from("invoice_group_items").insert({
       group_id: groupId,
       invoice_id: invoiceId,
@@ -188,9 +234,22 @@ const AgrupamentoNotas = () => {
     }
 
     toast({ title: "Sucesso", description: "Nota adicionada ao grupo" });
-    setSearchQuery("");
-    setSearchResults([]);
-    loadGroups();
+
+    if (forViewer) {
+      setViewerSearchQuery("");
+      setViewerSearchResults([]);
+    } else {
+      setSearchQuery("");
+      setSearchResults([]);
+    }
+
+    await loadGroups();
+
+    // Update the viewer group data if open
+    if (imageViewerGroup && imageViewerGroup.id === groupId) {
+      const updated = groups.find(g => g.id === groupId);
+      // Will be updated on next render via loadGroups
+    }
   };
 
   const removeInvoiceFromGroup = async (itemId: string) => {
@@ -227,6 +286,31 @@ const AgrupamentoNotas = () => {
     loadGroups();
   };
 
+  const updateGroupImage = async (groupId: string, file: File) => {
+    setUploadingImage(true);
+    const imageUrl = await uploadImage(file);
+    if (!imageUrl) {
+      toast({ title: "Erro", description: "Falha ao enviar imagem", variant: "destructive" });
+      setUploadingImage(false);
+      return;
+    }
+
+    const { error } = await supabase
+      .from("invoice_groups")
+      .update({ image_url: imageUrl })
+      .eq("id", groupId);
+
+    setUploadingImage(false);
+
+    if (error) {
+      toast({ title: "Erro", description: "Falha ao atualizar imagem", variant: "destructive" });
+      return;
+    }
+
+    toast({ title: "Sucesso", description: "Imagem atualizada" });
+    loadGroups();
+  };
+
   const toggleExpanded = (groupId: string) => {
     setExpandedGroups(prev => {
       const next = new Set(prev);
@@ -238,6 +322,11 @@ const AgrupamentoNotas = () => {
 
   const getPartialValue = (invoices: GroupInvoice[]) =>
     invoices.reduce((sum, inv) => sum + inv.total_value * 0.30, 0);
+
+  // Keep imageViewerGroup in sync with groups state
+  const currentViewerGroup = imageViewerGroup
+    ? groups.find(g => g.id === imageViewerGroup.id) || null
+    : null;
 
   return (
     <div className="space-y-6">
@@ -290,6 +379,11 @@ const AgrupamentoNotas = () => {
                     )}
                   </div>
                   <div className="flex gap-1">
+                    {group.image_url && (
+                      <Button variant="ghost" size="icon" onClick={() => setImageViewerGroup(group)} title="Ver imagem">
+                        <Image className="h-4 w-4" />
+                      </Button>
+                    )}
                     <Button variant="ghost" size="icon" onClick={() => startEditGroup(group)} title="Editar">
                       <Pencil className="h-4 w-4" />
                     </Button>
@@ -301,6 +395,27 @@ const AgrupamentoNotas = () => {
                     </Button>
                   </div>
                 </div>
+
+                {/* Upload image button if no image */}
+                {!group.image_url && (
+                  <div className="mt-2">
+                    <label className="cursor-pointer">
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={e => {
+                          const file = e.target.files?.[0];
+                          if (file) updateGroupImage(group.id, file);
+                        }}
+                      />
+                      <span className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors">
+                        <Upload className="h-3 w-3" />
+                        Adicionar imagem
+                      </span>
+                    </label>
+                  </div>
+                )}
 
                 {/* Summary row */}
                 <div className="grid grid-cols-3 gap-4 mt-2 text-sm">
@@ -399,11 +514,117 @@ const AgrupamentoNotas = () => {
               <Label>Valor Total do Grupo</Label>
               <Input type="number" step="0.01" value={newGroupTotal} onChange={e => setNewGroupTotal(e.target.value)} placeholder="0.00" />
             </div>
+            <div className="space-y-2">
+              <Label>Imagem (opcional)</Label>
+              <div className="flex items-center gap-2">
+                <Input
+                  type="file"
+                  accept="image/*"
+                  ref={fileInputRef}
+                  onChange={e => setNewGroupImage(e.target.files?.[0] || null)}
+                />
+              </div>
+              {newGroupImage && (
+                <p className="text-xs text-muted-foreground">{newGroupImage.name}</p>
+              )}
+            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setNewGroupDialogOpen(false)}>Cancelar</Button>
-            <Button onClick={createGroup}>Criar Grupo</Button>
+            <Button onClick={createGroup} disabled={uploadingImage}>
+              {uploadingImage ? "Enviando..." : "Criar Grupo"}
+            </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Image Viewer Dialog - allows adding invoices while viewing the image */}
+      <Dialog open={!!currentViewerGroup} onOpenChange={(open) => { if (!open) { setImageViewerGroup(null); setViewerSearchQuery(""); setViewerSearchResults([]); } }}>
+        <DialogContent className="max-w-5xl max-h-[90vh] overflow-hidden">
+          <DialogHeader>
+            <DialogTitle>{currentViewerGroup?.name} - Imagem</DialogTitle>
+          </DialogHeader>
+          {currentViewerGroup && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-[70vh] overflow-hidden">
+              {/* Image side */}
+              <div className="overflow-auto border rounded-lg bg-muted/20 p-2">
+                <img
+                  src={currentViewerGroup.image_url || ""}
+                  alt={currentViewerGroup.name}
+                  className="w-full h-auto object-contain rounded"
+                />
+                {/* Replace image */}
+                <label className="cursor-pointer mt-2 inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors">
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={e => {
+                      const file = e.target.files?.[0];
+                      if (file) updateGroupImage(currentViewerGroup.id, file);
+                    }}
+                  />
+                  <Upload className="h-3 w-3" />
+                  Trocar imagem
+                </label>
+              </div>
+
+              {/* Invoice adding side */}
+              <div className="overflow-auto space-y-3">
+                <div className="p-3 border rounded-lg bg-muted/30">
+                  <div className="flex gap-2 items-center mb-2">
+                    <Search className="h-4 w-4 text-muted-foreground" />
+                    <Input
+                      placeholder="Pesquisar nota ou cliente..."
+                      value={viewerSearchQuery}
+                      onChange={e => searchInvoices(e.target.value, true)}
+                      className="flex-1"
+                    />
+                  </div>
+                  {viewerSearchResults.length > 0 && (
+                    <div className="space-y-1 max-h-32 overflow-y-auto">
+                      {viewerSearchResults.map(inv => (
+                        <div key={inv.id} className="flex justify-between items-center p-2 hover:bg-muted rounded text-sm cursor-pointer" onClick={() => addInvoiceToGroup(currentViewerGroup.id, inv.id, true)}>
+                          <div>
+                            <span>Nota {inv.invoice_number}</span>
+                            {inv.contact_name && <span className="text-muted-foreground ml-2">({inv.contact_name})</span>}
+                          </div>
+                          <span className="font-medium">€ {Number(inv.total_value).toFixed(2)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Current invoices in group */}
+                <div className="space-y-1">
+                  <h4 className="text-sm font-semibold">Notas no grupo</h4>
+                  {currentViewerGroup.invoices.length === 0 ? (
+                    <p className="text-xs text-muted-foreground py-2">Nenhuma nota adicionada</p>
+                  ) : (
+                    currentViewerGroup.invoices.map(inv => (
+                      <div key={inv.id} className="flex justify-between items-center p-2 border rounded text-sm">
+                        <div>
+                          <span className="font-medium">Nota {inv.invoice_number}</span>
+                          <span className="text-muted-foreground ml-2">€ {inv.total_value.toFixed(2)}</span>
+                          <span className="text-muted-foreground ml-1 text-xs">(30%: € {(inv.total_value * 0.30).toFixed(2)})</span>
+                        </div>
+                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => removeInvoiceFromGroup(inv.id)}>
+                          <Trash2 className="h-3 w-3 text-destructive" />
+                        </Button>
+                      </div>
+                    ))
+                  )}
+                  {currentViewerGroup.invoices.length > 0 && (
+                    <div className="border-t pt-2 mt-1 flex justify-between text-sm font-bold">
+                      <span>Total (30%):</span>
+                      <span className="text-primary">€ {getPartialValue(currentViewerGroup.invoices).toFixed(2)}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </div>
