@@ -109,9 +109,11 @@ const AgrupamentoNotas = () => {
   };
 
   const uploadImage = async (file: File): Promise<string | null> => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return null;
     const fileExt = file.name.split(".").pop();
     const fileName = `group_${Date.now()}.${fileExt}`;
-    const filePath = `groups/${fileName}`;
+    const filePath = `groups/${user.id}/${fileName}`;
 
     const { error } = await supabase.storage
       .from("invoices")
