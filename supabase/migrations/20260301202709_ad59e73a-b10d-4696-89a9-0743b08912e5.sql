@@ -1,0 +1,1 @@
+ALTER TABLE public.invoice_groups ADD COLUMN image_url TEXT DEFAULT NULL;
