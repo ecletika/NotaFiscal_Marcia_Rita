@@ -164,9 +164,9 @@ const AgrupamentoNotas = () => {
 
     const { data } = await supabase
       .from("invoices")
-      .select("id, invoice_number, total_value, delivery_date")
+      .select("id, invoice_number, total_value, delivery_date, contact_name")
       .eq("is_validated", true)
-      .ilike("invoice_number", `%${query}%`)
+      .or(`invoice_number.ilike.%${query}%,contact_name.ilike.%${query}%`)
       .limit(10);
 
     setSearchResults(data || []);
@@ -327,8 +327,8 @@ const AgrupamentoNotas = () => {
                   <div className="mb-4 p-3 border rounded-lg bg-muted/30">
                     <div className="flex gap-2 items-center mb-2">
                       <Search className="h-4 w-4 text-muted-foreground" />
-                      <Input
-                        placeholder="Pesquisar número da nota..."
+                       <Input
+                         placeholder="Pesquisar por número da nota ou nome do cliente..."
                         value={addInvoiceGroupId === group.id ? searchQuery : ""}
                         onFocus={() => setAddInvoiceGroupId(group.id)}
                         onChange={e => {
@@ -341,9 +341,12 @@ const AgrupamentoNotas = () => {
                     {addInvoiceGroupId === group.id && searchResults.length > 0 && (
                       <div className="space-y-1 max-h-40 overflow-y-auto">
                         {searchResults.map(inv => (
-                          <div key={inv.id} className="flex justify-between items-center p-2 hover:bg-muted rounded text-sm cursor-pointer" onClick={() => addInvoiceToGroup(group.id, inv.id)}>
-                            <span>Nota {inv.invoice_number}</span>
-                            <span className="font-medium">€ {Number(inv.total_value).toFixed(2)}</span>
+                           <div key={inv.id} className="flex justify-between items-center p-2 hover:bg-muted rounded text-sm cursor-pointer" onClick={() => addInvoiceToGroup(group.id, inv.id)}>
+                             <div>
+                               <span>Nota {inv.invoice_number}</span>
+                               {inv.contact_name && <span className="text-muted-foreground ml-2">({inv.contact_name})</span>}
+                             </div>
+                             <span className="font-medium">€ {Number(inv.total_value).toFixed(2)}</span>
                           </div>
                         ))}
                       </div>
