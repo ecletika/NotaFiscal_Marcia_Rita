@@ -28,15 +28,24 @@ function safeGetAppOriginFromState(state: string | null) {
   if (!state) return null;
   try {
     const decoded = base64UrlDecode(state);
+    console.log("[callback] decoded state:", decoded);
     const parsed = JSON.parse(decoded);
     const appOrigin = String(parsed?.appOrigin ?? "");
+    console.log("[callback] appOrigin:", appOrigin);
 
-    // Prevent open-redirect: only allow Lovable preview/published domains.
+    // Prevent open-redirect: only allow HTTPS origins on known domains.
     if (!/^https:\/\//i.test(appOrigin)) return null;
-    if (!appOrigin.toLowerCase().endsWith(".lovable.app")) return null;
+    const hostname = new URL(appOrigin).hostname.toLowerCase();
+    const allowed =
+      hostname.endsWith(".lovable.app") ||
+      hostname.endsWith(".lovableproject.com") ||
+      hostname.endsWith(".supabase.co") ||
+      hostname === "localhost";
+    if (!allowed) return null;
 
     return appOrigin;
-  } catch {
+  } catch (err) {
+    console.error("[callback] state parse error:", err);
     return null;
   }
 }
