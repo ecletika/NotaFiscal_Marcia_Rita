@@ -68,7 +68,34 @@ const GoogleDriveSync = () => {
   const [syncing, setSyncing] = useState(false);
   const [files, setFiles] = useState<DriveFile[]>([]);
   const [results, setResults] = useState<SyncResult[]>([]);
+  const [googleUserEmail, setGoogleUserEmail] = useState<string>("");
   const { toast } = useToast();
+
+  const fetchUserInfo = async (token: string) => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/google-drive-sync/userinfo`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${session?.access_token}`,
+          },
+          body: JSON.stringify({ accessToken: token }),
+        }
+      );
+
+      const data = await response.json();
+
+      if (response.ok && data.userInfo) {
+        setGoogleUserEmail(data.userInfo.email || "");
+      }
+    } catch (error) {
+      console.error("Error fetching user info:", error);
+    }
+  };
 
   const handleAuth = () => {
     const clientId = "95631819036-a6oc8uvd28thar5a3f9vf3cat21ch6cl.apps.googleusercontent.com";
@@ -195,6 +222,8 @@ const GoogleDriveSync = () => {
 
         setAccessToken(token);
         setIsAuthenticated(true);
+
+        await fetchUserInfo(token);
 
         toast({
           title: "Conectado!",
@@ -418,6 +447,7 @@ const GoogleDriveSync = () => {
   const handleDisconnect = () => {
     setIsAuthenticated(false);
     setAccessToken(null);
+    setGoogleUserEmail("");
     setFolders([]);
     setSelectedFolder("");
     setFiles([]);
@@ -469,12 +499,31 @@ const GoogleDriveSync = () => {
                 <Check className="h-4 w-4 text-primary" />
                 <AlertTitle>Conectado ao Google Drive</AlertTitle>
                 <AlertDescription>
+                  {googleUserEmail && (
+                    <div className="text-sm mb-2">
+                      Conta: <span className="font-medium">{googleUserEmail}</span>
+                    </div>
+                  )}
                   Selecione uma pasta abaixo para sincronizar
                 </AlertDescription>
               </Alert>
 
               <div className="space-y-2">
-                <label className="text-sm font-medium">Pasta para sincronizar</label>
+                <div className="flex items-center justify-between">
+                  <label className="text-sm font-medium">Pasta para sincronizar</label>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => accessToken && loadFolders(accessToken)}
+                    disabled={loadingFolders}
+                  >
+                    {loadingFolders ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      "Recarregar pastas"
+                    )}
+                  </Button>
+                </div>
                 {loadingFolders ? (
                   <div className="flex items-center gap-2 text-sm text-muted-foreground">
                     <Loader2 className="h-4 w-4 animate-spin" />
