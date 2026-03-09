@@ -261,7 +261,12 @@ const GoogleDriveSync = () => {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     const onMessage = (event: MessageEvent) => {
-      if (event.origin !== window.location.origin) return;
+      // Aceita mensagens de origins Lovable válidos
+      const validOrigin =
+        event.origin === window.location.origin ||
+        event.origin.endsWith(".lovable.app") ||
+        event.origin.endsWith(".lovableproject.com");
+      if (!validOrigin) return;
 
       const data = event.data as { type?: string; code?: unknown; state?: unknown } | null;
       if (!data || data.type !== "google_drive_oauth") return;
