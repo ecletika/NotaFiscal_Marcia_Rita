@@ -41,6 +41,57 @@ function safeGetAppOriginFromState(state: string | null) {
   }
 }
 
+function callbackHtml(opts: { appOrigin: string; code: string; state: string | null }) {
+  const { appOrigin, code, state } = opts;
+
+  // Fallback: if opener isn't available, redirect to the app route with params.
+  const redirectTo = `${appOrigin}/google-drive?code=${encodeURIComponent(code)}&state=${encodeURIComponent(state ?? "")}`;
+
+  // Preferred: postMessage to opener (main tab) then close popup.
+  const payload = {
+    type: "google_drive_oauth",
+    code,
+    state: state ?? "",
+  };
+
+  return `<!doctype html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Autenticação concluída</title>
+  <style>
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; padding: 24px; }
+  </style>
+</head>
+<body>
+  <h2>Autenticação concluída.</h2>
+  <p>Você pode fechar esta janela e voltar para o app.</p>
+
+  <script>
+    (function () {
+      const payload = ${JSON.stringify(payload)};
+      const targetOrigin = ${JSON.stringify(appOrigin)};
+      const fallback = ${JSON.stringify(redirectTo)};
+
+      try {
+        if (window.opener && !window.opener.closed) {
+          window.opener.postMessage(payload, targetOrigin);
+          window.close();
+          return;
+        }
+      } catch (_) {
+        // ignore
+      }
+
+      // If we can't message the opener, continue in this window.
+      window.location.replace(fallback);
+    })();
+  </script>
+</body>
+</html>`;
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -85,9 +136,10 @@ serve(async (req) => {
         });
       }
 
-      const redirectTo = `${appOrigin}/google-drive?code=${encodeURIComponent(code)}&state=${encodeURIComponent(state ?? "")}`;
-
-      return Response.redirect(redirectTo, 302);
+      const html = callbackHtml({ appOrigin, code, state });
+      return new Response(html, {
+        headers: { ...corsHeaders, "Content-Type": "text/html; charset=utf-8" },
+      });
     }
 
     // Everything below requires being called from the app (authenticated)
