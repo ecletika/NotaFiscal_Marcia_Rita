@@ -56,6 +56,7 @@ const NotasFiscais = () => {
   const [viewingImage, setViewingImage] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState("pending");
   const [searchQuery, setSearchQuery] = useState("");
+  const [invoiceGroupMap, setInvoiceGroupMap] = useState<InvoiceGroupMap>({});
   const { toast } = useToast();
 
   useEffect(() => {
