@@ -27,6 +27,38 @@ interface SyncResult {
   error?: string;
 }
 
+type DriveOAuthState = {
+  nonce: string;
+  appOrigin: string;
+};
+
+const base64UrlEncode = (input: string) => {
+  const base64 = btoa(input);
+  return base64.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+};
+
+const base64UrlDecode = (input: string) => {
+  const padded = input + "==".slice(0, (4 - (input.length % 4)) % 4);
+  const base64 = padded.replace(/-/g, "+").replace(/_/g, "/");
+  return atob(base64);
+};
+
+const parseDriveState = (state: string | null): DriveOAuthState | null => {
+  if (!state) return null;
+  try {
+    const decoded = base64UrlDecode(state);
+    const parsed = JSON.parse(decoded);
+
+    const nonce = String(parsed?.nonce ?? "");
+    const appOrigin = String(parsed?.appOrigin ?? "");
+
+    if (!nonce || !appOrigin) return null;
+    return { nonce, appOrigin };
+  } catch {
+    return null;
+  }
+};
+
 const GoogleDriveSync = () => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [accessToken, setAccessToken] = useState<string | null>(null);
@@ -42,40 +74,37 @@ const GoogleDriveSync = () => {
     const clientId = "95631819036-a6oc8uvd28thar5a3f9vf3cat21ch6cl.apps.googleusercontent.com";
     const redirectUri = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/google-drive-sync/callback`;
     const scope = "https://www.googleapis.com/auth/drive.readonly";
-    
-    const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?` +
+
+    const nonce = crypto.randomUUID();
+    sessionStorage.setItem("gd_oauth_nonce", nonce);
+
+    const state = base64UrlEncode(
+      JSON.stringify({ nonce, appOrigin: window.location.origin } satisfies DriveOAuthState)
+    );
+
+    const authUrl =
+      `https://accounts.google.com/o/oauth2/v2/auth?` +
       `client_id=${clientId}&` +
       `redirect_uri=${encodeURIComponent(redirectUri)}&` +
       `response_type=code&` +
       `scope=${encodeURIComponent(scope)}&` +
       `access_type=offline&` +
-      `prompt=consent`;
+      `prompt=consent&` +
+      `state=${encodeURIComponent(state)}`;
 
     const authWindow = window.open(authUrl, "Google Drive Auth", "width=600,height=700");
 
-    const messageHandler = (event: MessageEvent) => {
-      if (event.data.type === "google-drive-auth" && event.data.tokens) {
-        setAccessToken(event.data.tokens.access_token);
-        setIsAuthenticated(true);
-        toast({
-          title: "Conectado!",
-          description: "Autenticação com Google Drive concluída",
-        });
-        window.removeEventListener("message", messageHandler);
-        
-        // Load folders after authentication
-        loadFolders(event.data.tokens.access_token);
-      }
-    };
-
-    window.addEventListener("message", messageHandler);
+    // Popup bloqueado? Faz o fluxo no mesmo tab (callback vai redirecionar de volta pro app)
+    if (!authWindow) {
+      window.location.href = authUrl;
+    }
   };
 
   const loadFolders = async (token: string) => {
     setLoadingFolders(true);
     try {
       const { data: { session } } = await supabase.auth.getSession();
-      
+
       const response = await fetch(
         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/google-drive-sync/folders`,
         {
@@ -95,7 +124,7 @@ const GoogleDriveSync = () => {
       }
 
       setFolders(data.folders);
-      
+
       // Try to find "NotasFiscais" folder and select it by default
       const notasFiscaisFolder = data.folders.find((f: DriveFolder) => f.name === "NotasFiscais");
       if (notasFiscaisFolder) {
@@ -117,9 +146,76 @@ const GoogleDriveSync = () => {
     } finally {
       setLoadingFolders(false);
     }
-  };
 
-  const handleSync = async () => {
+
+  // Completa o OAuth quando o Google redireciona de volta para /google-drive?code=...&state=...
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const code = params.get("code");
+    const stateParam = params.get("state");
+
+    if (!code) return;
+
+    (async () => {
+      try {
+        const expectedNonce = sessionStorage.getItem("gd_oauth_nonce");
+        const parsedState = parseDriveState(stateParam);
+
+        if (!expectedNonce || !parsedState || parsedState.nonce !== expectedNonce) {
+          throw new Error("Falha ao validar o retorno do Google (state inválido)");
+        }
+
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) {
+          throw new Error("Faça login no app antes de conectar o Google Drive");
+        }
+
+        const tokenResponse = await fetch(
+          `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/google-drive-sync/token`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "Authorization": `Bearer ${session.access_token}`,
+            },
+            body: JSON.stringify({ code }),
+          }
+        );
+
+        const tokenData = await tokenResponse.json();
+        if (!tokenResponse.ok) {
+          throw new Error(tokenData.error || "Erro ao finalizar autenticação");
+        }
+
+        const token = tokenData?.tokens?.access_token as string | undefined;
+        if (!token) {
+          throw new Error("Token de acesso não recebido do Google");
+        }
+
+        setAccessToken(token);
+        setIsAuthenticated(true);
+
+        toast({
+          title: "Conectado!",
+          description: "Autenticação com Google Drive concluída",
+        });
+
+        // limpa os parâmetros da URL
+        window.history.replaceState({}, document.title, "/google-drive");
+
+        await loadFolders(token);
+      } catch (error) {
+        console.error("OAuth completion error:", error);
+        toast({
+          title: "Erro ao conectar",
+          description: error instanceof Error ? error.message : "Erro desconhecido",
+          variant: "destructive",
+        });
+      }
+    })();
+  }, [toast]);
+
+
     if (!accessToken) {
       toast({
         title: "Erro",
