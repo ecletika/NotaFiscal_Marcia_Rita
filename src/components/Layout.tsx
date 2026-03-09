@@ -2,7 +2,7 @@ import { ReactNode, useEffect, useState } from "react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { LayoutDashboard, Upload, FileText, PlusCircle, BarChart3, LogOut, DollarSign, Database, Scissors, Link2, FolderOpen } from "lucide-react";
+import { LayoutDashboard, Upload, FileText, PlusCircle, BarChart3, LogOut, DollarSign, Database, Scissors, Link2, FolderOpen, Cloud } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { User } from "@supabase/supabase-js";
 import { SewingBackground } from "./SewingBackground";
@@ -44,6 +44,7 @@ export const Layout = ({ children }: LayoutProps) => {
     { to: "/", icon: LayoutDashboard, label: "Dashboard" },
     { to: "/upload", icon: Upload, label: "Upload" },
     { to: "/entrada-manual", icon: PlusCircle, label: "Entrada Manual" },
+    { to: "/google-drive", icon: Cloud, label: "Google Drive" },
     { to: "/notas-fiscais", icon: FileText, label: "Notas Fiscais" },
     { to: "/receitas", icon: DollarSign, label: "Receitas" },
     { to: "/relatorios", icon: BarChart3, label: "Relatórios" },
