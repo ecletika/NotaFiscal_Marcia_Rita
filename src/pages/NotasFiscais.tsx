@@ -62,6 +62,7 @@ const NotasFiscais = () => {
   useEffect(() => {
     loadPendingInvoices();
     loadYearMonths();
+    loadInvoiceGroups();
   }, []);
 
   useEffect(() => {
