@@ -146,9 +146,10 @@ const GoogleDriveSync = () => {
     } finally {
       setLoadingFolders(false);
     }
-
+  };
 
   // Completa o OAuth quando o Google redireciona de volta para /google-drive?code=...&state=...
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const code = params.get("code");
@@ -215,7 +216,7 @@ const GoogleDriveSync = () => {
     })();
   }, [toast]);
 
-
+  const handleSync = async () => {
     if (!accessToken) {
       toast({
         title: "Erro",
