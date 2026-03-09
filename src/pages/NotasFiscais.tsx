@@ -37,6 +37,9 @@ interface Invoice {
   invoice_items: any[];
 }
 
+// Map invoice_id -> group name(s)
+type InvoiceGroupMap = Record<string, string[]>;
+
 interface YearMonth {
   year: number;
   months: number[];
@@ -53,11 +56,13 @@ const NotasFiscais = () => {
   const [viewingImage, setViewingImage] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState("pending");
   const [searchQuery, setSearchQuery] = useState("");
+  const [invoiceGroupMap, setInvoiceGroupMap] = useState<InvoiceGroupMap>({});
   const { toast } = useToast();
 
   useEffect(() => {
     loadPendingInvoices();
     loadYearMonths();
+    loadInvoiceGroups();
   }, []);
 
   useEffect(() => {
@@ -65,6 +70,28 @@ const NotasFiscais = () => {
       loadInvoices();
     }
   }, [selectedYear, selectedMonth]);
+
+  const loadInvoiceGroups = async () => {
+    const { data, error } = await supabase
+      .from("invoice_group_items")
+      .select("invoice_id, group_id, invoice_groups(name)");
+
+    if (error) {
+      console.error('Error loading invoice groups:', error);
+      return;
+    }
+
+    const map: InvoiceGroupMap = {};
+    data?.forEach((item: any) => {
+      const invoiceId = item.invoice_id;
+      const groupName = item.invoice_groups?.name;
+      if (groupName) {
+        if (!map[invoiceId]) map[invoiceId] = [];
+        if (!map[invoiceId].includes(groupName)) map[invoiceId].push(groupName);
+      }
+    });
+    setInvoiceGroupMap(map);
+  };
 
   const loadPendingInvoices = async () => {
     const { data, error } = await supabase
@@ -474,6 +501,15 @@ const NotasFiscais = () => {
                   <span className="text-xs bg-secondary px-2 py-1 rounded mt-1 inline-block">
                     Entrada Manual
                   </span>
+                )}
+                {invoiceGroupMap[invoice.id] && invoiceGroupMap[invoice.id].length > 0 && (
+                  <div className="flex flex-wrap gap-1 mt-1">
+                    {invoiceGroupMap[invoice.id].map((groupName) => (
+                      <span key={groupName} className="text-xs bg-primary/15 text-primary px-2 py-1 rounded inline-block">
+                        AG: {groupName}
+                      </span>
+                    ))}
+                  </div>
                 )}
               </div>
               <p className="text-xl font-bold text-accent">
