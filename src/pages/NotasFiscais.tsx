@@ -502,6 +502,15 @@ const NotasFiscais = () => {
                     Entrada Manual
                   </span>
                 )}
+                {invoiceGroupMap[invoice.id] && invoiceGroupMap[invoice.id].length > 0 && (
+                  <div className="flex flex-wrap gap-1 mt-1">
+                    {invoiceGroupMap[invoice.id].map((groupName) => (
+                      <span key={groupName} className="text-xs bg-primary/15 text-primary px-2 py-1 rounded inline-block">
+                        AG: {groupName}
+                      </span>
+                    ))}
+                  </div>
+                )}
               </div>
               <p className="text-xl font-bold text-accent">
                 € {Number(invoice.total_value).toFixed(2)}
