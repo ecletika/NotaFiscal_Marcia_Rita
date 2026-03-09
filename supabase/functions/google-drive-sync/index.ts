@@ -100,16 +100,8 @@ function callbackHtml(opts: { appOrigin: string; code: string; state: string | n
   </script>
 </body>
 </html>`;
-}
-      }
 
-      // If we can't message the opener, continue in this window.
-      window.location.replace(fallback);
-    })();
-  </script>
-</body>
-</html>`;
-}
+
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
