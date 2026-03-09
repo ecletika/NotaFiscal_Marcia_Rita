@@ -37,6 +37,9 @@ interface Invoice {
   invoice_items: any[];
 }
 
+// Map invoice_id -> group name(s)
+type InvoiceGroupMap = Record<string, string[]>;
+
 interface YearMonth {
   year: number;
   months: number[];
