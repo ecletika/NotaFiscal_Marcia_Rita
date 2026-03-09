@@ -100,7 +100,7 @@ function callbackHtml(opts: { appOrigin: string; code: string; state: string | n
   </script>
 </body>
 </html>`;
-
+}
 
 
 serve(async (req) => {
