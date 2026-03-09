@@ -81,6 +81,41 @@ serve(async (req) => {
       });
     }
 
+    // List folders endpoint
+    if (path === 'folders') {
+      const { accessToken } = await req.json();
+
+      if (!accessToken) {
+        throw new Error('Access token is required');
+      }
+
+      // List all folders in Google Drive
+      const foldersResponse = await fetch(
+        `https://www.googleapis.com/drive/v3/files?q=mimeType='application/vnd.google-apps.folder'&fields=files(id,name)&orderBy=name`,
+        {
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+          },
+        }
+      );
+
+      const foldersData = await foldersResponse.json();
+
+      if (!foldersResponse.ok) {
+        throw new Error(`Failed to list folders: ${JSON.stringify(foldersData)}`);
+      }
+
+      return new Response(
+        JSON.stringify({
+          success: true,
+          folders: foldersData.files || [],
+        }),
+        {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        }
+      );
+    }
+
     // Sync endpoint - list files from Google Drive folder
     if (path === 'sync') {
       const { accessToken, folderId } = await req.json();
@@ -89,36 +124,13 @@ serve(async (req) => {
         throw new Error('Access token is required');
       }
 
-      // Default to "NotasFiscais" folder or search for it
-      let folderToSync = folderId;
-
-      if (!folderToSync) {
-        // Search for "NotasFiscais" folder
-        const searchResponse = await fetch(
-          `https://www.googleapis.com/drive/v3/files?q=name='NotasFiscais'+and+mimeType='application/vnd.google-apps.folder'&fields=files(id,name)`,
-          {
-            headers: {
-              'Authorization': `Bearer ${accessToken}`,
-            },
-          }
-        );
-
-        const searchData = await searchResponse.json();
-
-        if (!searchResponse.ok) {
-          throw new Error(`Failed to search folder: ${JSON.stringify(searchData)}`);
-        }
-
-        if (searchData.files && searchData.files.length > 0) {
-          folderToSync = searchData.files[0].id;
-        } else {
-          throw new Error('Pasta "NotasFiscais" não encontrada no Google Drive');
-        }
+      if (!folderId) {
+        throw new Error('Folder ID is required');
       }
 
       // List files in folder (only images)
       const filesResponse = await fetch(
-        `https://www.googleapis.com/drive/v3/files?q='${folderToSync}'+in+parents+and+(mimeType='image/jpeg'+or+mimeType='image/png'+or+mimeType='image/jpg')&fields=files(id,name,mimeType,modifiedTime)&orderBy=modifiedTime desc`,
+        `https://www.googleapis.com/drive/v3/files?q='${folderId}'+in+parents+and+(mimeType='image/jpeg'+or+mimeType='image/png'+or+mimeType='image/jpg')&fields=files(id,name,mimeType,modifiedTime)&orderBy=modifiedTime desc`,
         {
           headers: {
             'Authorization': `Bearer ${accessToken}`,
@@ -135,7 +147,7 @@ serve(async (req) => {
       return new Response(
         JSON.stringify({
           success: true,
-          folderId: folderToSync,
+          folderId: folderId,
           files: filesData.files || [],
         }),
         {
