@@ -71,6 +71,28 @@ const NotasFiscais = () => {
     }
   }, [selectedYear, selectedMonth]);
 
+  const loadInvoiceGroups = async () => {
+    const { data, error } = await supabase
+      .from("invoice_group_items")
+      .select("invoice_id, group_id, invoice_groups(name)");
+
+    if (error) {
+      console.error('Error loading invoice groups:', error);
+      return;
+    }
+
+    const map: InvoiceGroupMap = {};
+    data?.forEach((item: any) => {
+      const invoiceId = item.invoice_id;
+      const groupName = item.invoice_groups?.name;
+      if (groupName) {
+        if (!map[invoiceId]) map[invoiceId] = [];
+        if (!map[invoiceId].includes(groupName)) map[invoiceId].push(groupName);
+      }
+    });
+    setInvoiceGroupMap(map);
+  };
+
   const loadPendingInvoices = async () => {
     const { data, error } = await supabase
       .from("invoices")
