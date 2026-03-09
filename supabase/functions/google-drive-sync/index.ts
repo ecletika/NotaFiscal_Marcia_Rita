@@ -50,22 +50,34 @@ serve(async (req) => {
       const html = `
         <!DOCTYPE html>
         <html>
-        <head><title>Autenticação Completa</title></head>
+        <head>
+          <meta charset="UTF-8">
+          <title>Autenticação Completa</title>
+        </head>
         <body>
           <h2>Autenticação completa! Fechando...</h2>
           <script>
-            window.opener.postMessage({
-              type: 'google-drive-auth',
-              tokens: ${JSON.stringify(tokens)}
-            }, '*');
-            setTimeout(() => window.close(), 1000);
+            // Send message multiple times to ensure it's received
+            const sendMessage = () => {
+              if (window.opener) {
+                window.opener.postMessage({
+                  type: 'google-drive-auth',
+                  tokens: ${JSON.stringify(tokens)}
+                }, '*');
+              }
+            };
+            
+            sendMessage();
+            setTimeout(sendMessage, 100);
+            setTimeout(sendMessage, 300);
+            setTimeout(() => window.close(), 2000);
           </script>
         </body>
         </html>
       `;
 
       return new Response(html, {
-        headers: { ...corsHeaders, 'Content-Type': 'text/html' },
+        headers: { ...corsHeaders, 'Content-Type': 'text/html; charset=utf-8' },
       });
     }
 
