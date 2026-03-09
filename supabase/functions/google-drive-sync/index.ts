@@ -53,14 +53,13 @@ function safeGetAppOriginFromState(state: string | null) {
 function callbackHtml(opts: { appOrigin: string; code: string; state: string | null }) {
   const { appOrigin, code, state } = opts;
 
-  // Fallback: if opener isn't available, redirect to the app route with params.
   const redirectTo = `${appOrigin}/google-drive?code=${encodeURIComponent(code)}&state=${encodeURIComponent(state ?? "")}`;
 
-  // Preferred: postMessage to opener (main tab) then close popup.
-  const payload = {
+  const lsPayload = {
     type: "google_drive_oauth",
     code,
     state: state ?? "",
+    ts: Date.now(),
   };
 
   return `<!doctype html>
@@ -79,18 +78,29 @@ function callbackHtml(opts: { appOrigin: string; code: string; state: string | n
 
   <script>
     (function () {
-      const payload = ${JSON.stringify(payload)};
-      const targetOrigin = ${JSON.stringify(appOrigin)};
-      const fallback = ${JSON.stringify(redirectTo)};
+      // Write code to localStorage so the main app (even inside an iframe) can pick it up.
+      try {
+        localStorage.setItem("gd_oauth_result", ${JSON.stringify(JSON.stringify(lsPayload))});
+      } catch (_) {}
 
+      // Also try postMessage in case opener is accessible.
       try {
         if (window.opener && !window.opener.closed) {
-          window.opener.postMessage(payload, targetOrigin);
-          window.close();
+          window.opener.postMessage(${JSON.stringify(lsPayload)}, "*");
+          setTimeout(function() { window.close(); }, 300);
           return;
         }
-      } catch (_) {
-        // ignore
+      } catch (_) {}
+
+      // Auto-close after saving to localStorage
+      setTimeout(function() {
+        try { window.close(); } catch(_) {}
+      }, 1000);
+    })();
+  </script>
+</body>
+</html>`;
+}
       }
 
       // If we can't message the opener, continue in this window.
