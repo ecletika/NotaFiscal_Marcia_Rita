@@ -1,17 +1,24 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, CloudDownload, Check, AlertCircle } from "lucide-react";
+import { Loader2, CloudDownload, Check, AlertCircle, FolderOpen } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { format } from "date-fns";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
 
 interface DriveFile {
   id: string;
   name: string;
   mimeType: string;
   modifiedTime: string;
+}
+
+interface DriveFolder {
+  id: string;
+  name: string;
 }
 
 interface SyncResult {
@@ -23,6 +30,9 @@ interface SyncResult {
 const GoogleDriveSync = () => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [accessToken, setAccessToken] = useState<string | null>(null);
+  const [loadingFolders, setLoadingFolders] = useState(false);
+  const [folders, setFolders] = useState<DriveFolder[]>([]);
+  const [selectedFolder, setSelectedFolder] = useState<string>("");
   const [syncing, setSyncing] = useState(false);
   const [files, setFiles] = useState<DriveFile[]>([]);
   const [results, setResults] = useState<SyncResult[]>([]);
@@ -52,10 +62,61 @@ const GoogleDriveSync = () => {
           description: "Autenticação com Google Drive concluída",
         });
         window.removeEventListener("message", messageHandler);
+        
+        // Load folders after authentication
+        loadFolders(event.data.tokens.access_token);
       }
     };
 
     window.addEventListener("message", messageHandler);
+  };
+
+  const loadFolders = async (token: string) => {
+    setLoadingFolders(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/google-drive-sync/folders`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${session?.access_token}`,
+          },
+          body: JSON.stringify({ accessToken: token }),
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "Erro ao carregar pastas");
+      }
+
+      setFolders(data.folders);
+      
+      // Try to find "NotasFiscais" folder and select it by default
+      const notasFiscaisFolder = data.folders.find((f: DriveFolder) => f.name === "NotasFiscais");
+      if (notasFiscaisFolder) {
+        setSelectedFolder(notasFiscaisFolder.id);
+      }
+
+      toast({
+        title: "Pastas carregadas",
+        description: `${data.folders.length} pasta(s) encontrada(s)`,
+      });
+
+    } catch (error) {
+      console.error("Error loading folders:", error);
+      toast({
+        title: "Erro ao carregar pastas",
+        description: error instanceof Error ? error.message : "Erro desconhecido",
+        variant: "destructive",
+      });
+    } finally {
+      setLoadingFolders(false);
+    }
   };
 
   const handleSync = async () => {
@@ -68,11 +129,19 @@ const GoogleDriveSync = () => {
       return;
     }
 
+    if (!selectedFolder) {
+      toast({
+        title: "Erro",
+        description: "Selecione uma pasta para sincronizar",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setSyncing(true);
     setResults([]);
 
     try {
-      // List files from NotasFiscais folder
       const { data: { session } } = await supabase.auth.getSession();
       
       const syncResponse = await fetch(
@@ -83,7 +152,7 @@ const GoogleDriveSync = () => {
             "Content-Type": "application/json",
             "Authorization": `Bearer ${session?.access_token}`,
           },
-          body: JSON.stringify({ accessToken }),
+          body: JSON.stringify({ accessToken, folderId: selectedFolder }),
         }
       );
 
@@ -98,7 +167,7 @@ const GoogleDriveSync = () => {
       if (syncData.files.length === 0) {
         toast({
           title: "Nenhum arquivo encontrado",
-          description: "Não há imagens na pasta NotasFiscais",
+          description: "Não há imagens na pasta selecionada",
         });
         setSyncing(false);
         return;
@@ -106,7 +175,7 @@ const GoogleDriveSync = () => {
 
       toast({
         title: "Arquivos encontrados",
-        description: `${syncData.files.length} imagem(ns) na pasta NotasFiscais`,
+        description: `${syncData.files.length} imagem(ns) encontrada(s)`,
       });
 
       // Download and process each file
@@ -249,11 +318,32 @@ const GoogleDriveSync = () => {
     }
   };
 
+  const handleDisconnect = () => {
+    setIsAuthenticated(false);
+    setAccessToken(null);
+    setFolders([]);
+    setSelectedFolder("");
+    setFiles([]);
+    setResults([]);
+    toast({
+      title: "Desconectado",
+      description: "Desconectado do Google Drive",
+    });
+  };
+
   return (
     <div className="max-w-2xl mx-auto space-y-4">
       <Card>
         <CardHeader>
-          <CardTitle>Sincronização com Google Drive</CardTitle>
+          <CardTitle className="flex items-center justify-between">
+            Sincronização com Google Drive
+            {isAuthenticated && (
+              <Badge variant="outline" className="text-green-600 border-green-600">
+                <Check className="h-3 w-3 mr-1" />
+                Conectado
+              </Badge>
+            )}
+          </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           {!isAuthenticated ? (
@@ -264,7 +354,7 @@ const GoogleDriveSync = () => {
                 <AlertDescription>
                   <ul className="text-sm mt-2 space-y-1">
                     <li>• Conecte sua conta do Google Drive</li>
-                    <li>• Buscaremos automaticamente a pasta <strong>"NotasFiscais"</strong></li>
+                    <li>• Escolha a pasta que deseja sincronizar</li>
                     <li>• Todas as imagens serão importadas e processadas</li>
                     <li>• As notas vão para validação, igual ao upload manual</li>
                   </ul>
@@ -282,27 +372,63 @@ const GoogleDriveSync = () => {
                 <Check className="h-4 w-4 text-green-500" />
                 <AlertTitle>Conectado ao Google Drive</AlertTitle>
                 <AlertDescription>
-                  Pronto para sincronizar a pasta "NotasFiscais"
+                  Selecione uma pasta abaixo para sincronizar
                 </AlertDescription>
               </Alert>
 
-              <Button
-                onClick={handleSync}
-                disabled={syncing}
-                className="w-full"
-              >
-                {syncing ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Sincronizando...
-                  </>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Pasta para sincronizar</label>
+                {loadingFolders ? (
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Carregando pastas...
+                  </div>
                 ) : (
-                  <>
-                    <CloudDownload className="mr-2 h-4 w-4" />
-                    Sincronizar Agora
-                  </>
+                  <Select value={selectedFolder} onValueChange={setSelectedFolder}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione uma pasta" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {folders.map((folder) => (
+                        <SelectItem key={folder.id} value={folder.id}>
+                          <div className="flex items-center gap-2">
+                            <FolderOpen className="h-4 w-4" />
+                            {folder.name}
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 )}
-              </Button>
+              </div>
+
+              <div className="flex gap-2">
+                <Button
+                  onClick={handleSync}
+                  disabled={syncing || !selectedFolder}
+                  className="flex-1"
+                >
+                  {syncing ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Sincronizando...
+                    </>
+                  ) : (
+                    <>
+                      <CloudDownload className="mr-2 h-4 w-4" />
+                      Sincronizar Agora
+                    </>
+                  )}
+                </Button>
+                
+                <Button
+                  onClick={handleDisconnect}
+                  variant="outline"
+                  disabled={syncing}
+                >
+                  Desconectar
+                </Button>
+              </div>
 
               {files.length > 0 && (
                 <div className="space-y-2">
