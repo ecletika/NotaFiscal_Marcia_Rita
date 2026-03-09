@@ -3,11 +3,13 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, CloudDownload, Check, AlertCircle, FolderOpen } from "lucide-react";
+import { Loader2, CloudDownload, Check, AlertCircle, FolderOpen, Clock } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { format } from "date-fns";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 
 interface DriveFile {
   id: string;
@@ -69,6 +71,9 @@ const GoogleDriveSync = () => {
   const [files, setFiles] = useState<DriveFile[]>([]);
   const [results, setResults] = useState<SyncResult[]>([]);
   const [googleUserEmail, setGoogleUserEmail] = useState<string>("");
+  const [autoSyncEnabled, setAutoSyncEnabled] = useState(false);
+  const [autoSyncInterval, setAutoSyncInterval] = useState(10); // em minutos
+  const [lastSyncTime, setLastSyncTime] = useState<Date | null>(null);
   const { toast } = useToast();
 
   const fetchUserInfo = async (token: string) => {
@@ -244,6 +249,24 @@ const GoogleDriveSync = () => {
       }
     })();
   }, [toast]);
+
+  // Auto-sync effect
+  useEffect(() => {
+    if (!autoSyncEnabled || !isAuthenticated || !selectedFolder || !accessToken) {
+      return;
+    }
+
+    const intervalMs = autoSyncInterval * 60 * 1000; // converte minutos para ms
+    
+    const intervalId = setInterval(() => {
+      console.log("Auto-sync executando...");
+      handleSync();
+    }, intervalMs);
+
+    return () => {
+      clearInterval(intervalId);
+    };
+  }, [autoSyncEnabled, autoSyncInterval, isAuthenticated, selectedFolder, accessToken]);
 
   const handleSync = async () => {
     if (!accessToken) {
@@ -425,6 +448,7 @@ const GoogleDriveSync = () => {
       }
 
       setResults(syncResults);
+      setLastSyncTime(new Date());
 
       const successful = syncResults.filter((r) => r.success).length;
       toast({
@@ -445,6 +469,7 @@ const GoogleDriveSync = () => {
   };
 
   const handleDisconnect = () => {
+    setAutoSyncEnabled(false);
     setIsAuthenticated(false);
     setAccessToken(null);
     setGoogleUserEmail("");
@@ -545,6 +570,55 @@ const GoogleDriveSync = () => {
                       ))}
                     </SelectContent>
                   </Select>
+                )}
+              </div>
+
+              <div className="space-y-4 p-4 border rounded-lg bg-muted/20">
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <Label htmlFor="auto-sync" className="text-base">
+                      Sincronização automática
+                    </Label>
+                    <div className="text-sm text-muted-foreground">
+                      Sincroniza automaticamente a cada intervalo escolhido
+                    </div>
+                  </div>
+                  <Switch
+                    id="auto-sync"
+                    checked={autoSyncEnabled}
+                    onCheckedChange={setAutoSyncEnabled}
+                    disabled={syncing || !selectedFolder}
+                  />
+                </div>
+
+                {autoSyncEnabled && (
+                  <div className="space-y-2">
+                    <Label htmlFor="sync-interval" className="text-sm">
+                      Intervalo de sincronização
+                    </Label>
+                    <Select
+                      value={autoSyncInterval.toString()}
+                      onValueChange={(value) => setAutoSyncInterval(parseInt(value))}
+                    >
+                      <SelectTrigger id="sync-interval">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="5">A cada 5 minutos</SelectItem>
+                        <SelectItem value="10">A cada 10 minutos</SelectItem>
+                        <SelectItem value="15">A cada 15 minutos</SelectItem>
+                        <SelectItem value="30">A cada 30 minutos</SelectItem>
+                        <SelectItem value="60">A cada 1 hora</SelectItem>
+                      </SelectContent>
+                    </Select>
+
+                    {lastSyncTime && (
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground mt-2">
+                        <Clock className="h-4 w-4" />
+                        Última sincronização: {format(lastSyncTime, "HH:mm:ss")}
+                      </div>
+                    )}
+                  </div>
                 )}
               </div>
 
