@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
@@ -75,6 +75,8 @@ const GoogleDriveSync = () => {
   const [autoSyncInterval, setAutoSyncInterval] = useState(10); // em minutos
   const [lastSyncTime, setLastSyncTime] = useState<Date | null>(null);
   const { toast } = useToast();
+  const syncFunctionRef = useRef<(() => Promise<void>) | null>(null);
+
 
   const fetchUserInfo = async (token: string) => {
     try {
@@ -256,11 +258,13 @@ const GoogleDriveSync = () => {
       return;
     }
 
-    const intervalMs = autoSyncInterval * 60 * 1000; // converte minutos para ms
+    const intervalMs = autoSyncInterval * 60 * 1000;
     
     const intervalId = setInterval(() => {
       console.log("Auto-sync executando...");
-      handleSync();
+      if (syncFunctionRef.current) {
+        syncFunctionRef.current();
+      }
     }, intervalMs);
 
     return () => {
@@ -467,6 +471,11 @@ const GoogleDriveSync = () => {
       setSyncing(false);
     }
   };
+
+  // Atualiza a ref sempre que handleSync mudar
+  useEffect(() => {
+    syncFunctionRef.current = handleSync;
+  });
 
   const handleDisconnect = () => {
     setAutoSyncEnabled(false);
