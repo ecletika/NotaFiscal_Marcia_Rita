@@ -435,7 +435,7 @@ const GoogleDriveSync = () => {
           <CardTitle className="flex items-center justify-between">
             Sincronização com Google Drive
             {isAuthenticated && (
-              <Badge variant="outline" className="text-green-600 border-green-600">
+              <Badge variant="outline" className="text-primary border-primary">
                 <Check className="h-3 w-3 mr-1" />
                 Conectado
               </Badge>
@@ -466,7 +466,7 @@ const GoogleDriveSync = () => {
           ) : (
             <div className="space-y-4">
               <Alert>
-                <Check className="h-4 w-4 text-green-500" />
+                <Check className="h-4 w-4 text-primary" />
                 <AlertTitle>Conectado ao Google Drive</AlertTitle>
                 <AlertDescription>
                   Selecione uma pasta abaixo para sincronizar
@@ -557,7 +557,7 @@ const GoogleDriveSync = () => {
                   variant={result.success ? "default" : "destructive"}
                 >
                   {result.success ? (
-                    <Check className="h-4 w-4 text-green-500" />
+                    <Check className="h-4 w-4 text-primary" />
                   ) : (
                     <AlertCircle className="h-4 w-4" />
                   )}
