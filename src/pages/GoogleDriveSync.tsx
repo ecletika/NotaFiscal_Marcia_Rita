@@ -110,7 +110,8 @@ const GoogleDriveSync = () => {
     const scope = "https://www.googleapis.com/auth/drive.readonly";
 
     const nonce = crypto.randomUUID();
-    sessionStorage.setItem("gd_oauth_nonce", nonce);
+    // localStorage é compartilhado entre abas/janelas (sessionStorage não), então funciona com popup.
+    localStorage.setItem("gd_oauth_nonce", nonce);
 
     const state = base64UrlEncode(
       JSON.stringify({ nonce, appOrigin: window.location.origin } satisfies DriveOAuthState)
@@ -182,6 +183,69 @@ const GoogleDriveSync = () => {
     }
   };
 
+  const completeOAuth = async (code: string, stateParam: string | null) => {
+    try {
+      const expectedNonce = localStorage.getItem("gd_oauth_nonce");
+      const parsedState = parseDriveState(stateParam);
+
+      if (!expectedNonce || !parsedState || parsedState.nonce !== expectedNonce) {
+        throw new Error("Falha ao validar o retorno do Google (state inválido)");
+      }
+
+      // nonce é one-time
+      localStorage.removeItem("gd_oauth_nonce");
+
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        throw new Error("Faça login no app antes de conectar o Google Drive");
+      }
+
+      const tokenResponse = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/google-drive-sync/token`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${session.access_token}`,
+          },
+          body: JSON.stringify({ code }),
+        }
+      );
+
+      const tokenData = await tokenResponse.json();
+      if (!tokenResponse.ok) {
+        throw new Error(tokenData.error || "Erro ao finalizar autenticação");
+      }
+
+      const token = tokenData?.tokens?.access_token as string | undefined;
+      if (!token) {
+        throw new Error("Token de acesso não recebido do Google");
+      }
+
+      setAccessToken(token);
+      setIsAuthenticated(true);
+
+      await fetchUserInfo(token);
+
+      toast({
+        title: "Conectado!",
+        description: "Autenticação com Google Drive concluída",
+      });
+
+      // limpa os parâmetros da URL (caso tenha vindo por redirect)
+      window.history.replaceState({}, document.title, "/google-drive");
+
+      await loadFolders(token);
+    } catch (error) {
+      console.error("OAuth completion error:", error);
+      toast({
+        title: "Erro ao conectar",
+        description: error instanceof Error ? error.message : "Erro desconhecido",
+        variant: "destructive",
+      });
+    }
+  };
+
   // Completa o OAuth quando o Google redireciona de volta para /google-drive?code=...&state=...
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
@@ -190,66 +254,27 @@ const GoogleDriveSync = () => {
     const stateParam = params.get("state");
 
     if (!code) return;
+    void completeOAuth(code, stateParam);
+  }, [toast]);
 
-    (async () => {
-      try {
-        const expectedNonce = sessionStorage.getItem("gd_oauth_nonce");
-        const parsedState = parseDriveState(stateParam);
+  // Completa o OAuth quando o callback roda em popup e envia os dados via postMessage
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    const onMessage = (event: MessageEvent) => {
+      if (event.origin !== window.location.origin) return;
 
-        if (!expectedNonce || !parsedState || parsedState.nonce !== expectedNonce) {
-          throw new Error("Falha ao validar o retorno do Google (state inválido)");
-        }
+      const data = event.data as { type?: string; code?: unknown; state?: unknown } | null;
+      if (!data || data.type !== "google_drive_oauth") return;
 
-        const { data: { session } } = await supabase.auth.getSession();
-        if (!session) {
-          throw new Error("Faça login no app antes de conectar o Google Drive");
-        }
+      const code = typeof data.code === "string" ? data.code : "";
+      const state = typeof data.state === "string" ? data.state : null;
 
-        const tokenResponse = await fetch(
-          `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/google-drive-sync/token`,
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              "Authorization": `Bearer ${session.access_token}`,
-            },
-            body: JSON.stringify({ code }),
-          }
-        );
+      if (!code) return;
+      void completeOAuth(code, state);
+    };
 
-        const tokenData = await tokenResponse.json();
-        if (!tokenResponse.ok) {
-          throw new Error(tokenData.error || "Erro ao finalizar autenticação");
-        }
-
-        const token = tokenData?.tokens?.access_token as string | undefined;
-        if (!token) {
-          throw new Error("Token de acesso não recebido do Google");
-        }
-
-        setAccessToken(token);
-        setIsAuthenticated(true);
-
-        await fetchUserInfo(token);
-
-        toast({
-          title: "Conectado!",
-          description: "Autenticação com Google Drive concluída",
-        });
-
-        // limpa os parâmetros da URL
-        window.history.replaceState({}, document.title, "/google-drive");
-
-        await loadFolders(token);
-      } catch (error) {
-        console.error("OAuth completion error:", error);
-        toast({
-          title: "Erro ao conectar",
-          description: error instanceof Error ? error.message : "Erro desconhecido",
-          variant: "destructive",
-        });
-      }
-    })();
+    window.addEventListener("message", onMessage);
+    return () => window.removeEventListener("message", onMessage);
   }, [toast]);
 
   // Auto-sync effect
