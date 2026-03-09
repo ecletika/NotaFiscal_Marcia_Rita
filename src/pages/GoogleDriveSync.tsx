@@ -257,17 +257,35 @@ const GoogleDriveSync = () => {
     void completeOAuth(code, stateParam);
   }, [toast]);
 
-  // Completa o OAuth quando o callback roda em popup e envia os dados via postMessage
+  // Poll localStorage for OAuth result (works across iframe boundaries)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const raw = localStorage.getItem("gd_oauth_result");
+      if (!raw) return;
+
+      localStorage.removeItem("gd_oauth_result");
+
+      try {
+        const data = JSON.parse(raw) as { type?: string; code?: string; state?: string; ts?: number };
+        if (data.type !== "google_drive_oauth" || !data.code) return;
+
+        // Ignore if older than 2 minutes
+        if (data.ts && Date.now() - data.ts > 120_000) return;
+
+        void completeOAuth(data.code, data.state ?? null);
+      } catch {
+        // ignore
+      }
+    }, 500);
+
+    return () => clearInterval(interval);
+  }, [toast]);
+
+  // Also listen for postMessage as fallback
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     const onMessage = (event: MessageEvent) => {
-      // Aceita mensagens de origins Lovable válidos
-      const validOrigin =
-        event.origin === window.location.origin ||
-        event.origin.endsWith(".lovable.app") ||
-        event.origin.endsWith(".lovableproject.com");
-      if (!validOrigin) return;
-
       const data = event.data as { type?: string; code?: unknown; state?: unknown } | null;
       if (!data || data.type !== "google_drive_oauth") return;
 
