@@ -141,6 +141,33 @@ serve(async (req) => {
     }
 
     // -------------------------
+    // Get user info
+    // -------------------------
+    if (path === "userinfo") {
+      const { accessToken } = await req.json();
+
+      if (!accessToken) {
+        return json({ error: "Access token is required" }, { status: 400 });
+      }
+
+      const userInfoResponse = await fetch(
+        "https://www.googleapis.com/oauth2/v2/userinfo",
+        {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        },
+      );
+
+      const userInfoData = await userInfoResponse.json();
+
+      if (!userInfoResponse.ok) {
+        return json({ error: "Failed to get user info", details: userInfoData }, { status: 400 });
+      }
+
+      return json({ success: true, userInfo: userInfoData });
+    }
+
     // List folders
     // -------------------------
     if (path === "folders") {
