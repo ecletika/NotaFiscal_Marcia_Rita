@@ -16,7 +16,7 @@ import NotFound from "./pages/NotFound";
 import SharedReport from "./pages/SharedReport";
 import LinksCompartilhados from "./pages/LinksCompartilhados";
 import AgrupamentoNotas from "./pages/AgrupamentoNotas";
-import GoogleDriveSync from "./pages/GoogleDriveSync";
+
 
 const queryClient = new QueryClient();
 
