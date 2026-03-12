@@ -37,7 +37,7 @@ const App = () => (
           <Route element={<Layout><Relatorios /></Layout>} path="/relatorios" />
           <Route element={<Layout><AgrupamentoNotas /></Layout>} path="/ag-nota" />
           <Route element={<Layout><LinksCompartilhados /></Layout>} path="/links" />
-          <Route element={<Layout><GoogleDriveSync /></Layout>} path="/google-drive" />
+          
           <Route element={<Layout><Backup /></Layout>} path="/backup" />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route element={<Layout><NotFound /></Layout>} path="*" />

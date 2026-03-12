@@ -44,7 +44,7 @@ export const Layout = ({ children }: LayoutProps) => {
     { to: "/", icon: LayoutDashboard, label: "Dashboard" },
     { to: "/upload", icon: Upload, label: "Upload" },
     { to: "/entrada-manual", icon: PlusCircle, label: "Entrada Manual" },
-    { to: "/google-drive", icon: Cloud, label: "Google Drive" },
+    
     { to: "/notas-fiscais", icon: FileText, label: "Notas Fiscais" },
     { to: "/receitas", icon: DollarSign, label: "Receitas" },
     { to: "/relatorios", icon: BarChart3, label: "Relatórios" },
