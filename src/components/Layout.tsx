@@ -2,7 +2,7 @@ import { ReactNode, useEffect, useState } from "react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { LayoutDashboard, Upload, FileText, PlusCircle, BarChart3, LogOut, DollarSign, Database, Scissors, Link2, FolderOpen, Cloud } from "lucide-react";
+import { LayoutDashboard, Upload, FileText, PlusCircle, BarChart3, LogOut, DollarSign, Database, Scissors, Link2, FolderOpen } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { User } from "@supabase/supabase-js";
 import { SewingBackground } from "./SewingBackground";
