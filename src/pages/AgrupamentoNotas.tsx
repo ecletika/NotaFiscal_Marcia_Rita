@@ -22,6 +22,7 @@ interface GroupInvoice {
   invoice_number: string;
   total_value: number;
   delivery_date: string;
+  contact_name: string | null;
 }
 
 interface InvoiceGroup {
