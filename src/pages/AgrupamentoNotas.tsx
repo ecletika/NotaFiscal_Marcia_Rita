@@ -214,7 +214,22 @@ const AgrupamentoNotas = () => {
     loadGroups();
   };
 
-  const toggleComplete = async (group: InvoiceGroup) => {
+  const togglePaid = async (group: InvoiceGroup) => {
+    const { error } = await supabase
+      .from("invoice_groups")
+      .update({ is_paid: !group.is_paid } as any)
+      .eq("id", group.id);
+
+    if (error) {
+      toast({ title: "Erro", description: "Falha ao atualizar pagamento", variant: "destructive" });
+      return;
+    }
+
+    toast({ title: "Sucesso", description: group.is_paid ? "Marcado como não pago" : "Marcado como pago" });
+    loadGroups();
+  };
+
+
     const { error } = await supabase
       .from("invoice_groups")
       .update({ is_completed: !group.is_completed })
