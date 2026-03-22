@@ -117,6 +117,7 @@ const AgrupamentoNotas = () => {
             invoice_number: inv.invoice_number,
             total_value: Number(inv.total_value),
             delivery_date: inv.delivery_date,
+            contact_name: inv.contact_name,
           };
         })
         .filter(Boolean) as GroupInvoice[];
