@@ -22,6 +22,7 @@ interface GroupInvoice {
   invoice_number: string;
   total_value: number;
   delivery_date: string;
+  contact_name: string | null;
 }
 
 interface InvoiceGroup {
@@ -95,7 +96,7 @@ const AgrupamentoNotas = () => {
     if (invoiceIds.length > 0) {
       const { data: invoicesData } = await supabase
         .from("invoices")
-        .select("id, invoice_number, total_value, delivery_date")
+        .select("id, invoice_number, total_value, delivery_date, contact_name")
         .in("id", invoiceIds);
 
       for (const inv of invoicesData || []) {
@@ -116,6 +117,7 @@ const AgrupamentoNotas = () => {
             invoice_number: inv.invoice_number,
             total_value: Number(inv.total_value),
             delivery_date: inv.delivery_date,
+            contact_name: inv.contact_name,
           };
         })
         .filter(Boolean) as GroupInvoice[];
@@ -480,6 +482,7 @@ const AgrupamentoNotas = () => {
                     <div key={inv.id} className="flex justify-between items-center p-2 border rounded">
                       <div className="text-sm">
                         <span className="font-medium">Nota {inv.invoice_number}</span>
+                        {inv.contact_name && <span className="text-muted-foreground ml-2">- {inv.contact_name}</span>}
                         <span className="text-muted-foreground ml-2">€ {inv.total_value.toFixed(2)}</span>
                         <span className="text-muted-foreground ml-2 text-xs">(30%: € {(inv.total_value * 0.30).toFixed(2)})</span>
                       </div>
@@ -659,6 +662,7 @@ const AgrupamentoNotas = () => {
                       <div key={inv.id} className="flex justify-between items-center p-2 border rounded text-sm">
                         <div>
                           <span className="font-medium">Nota {inv.invoice_number}</span>
+                          {inv.contact_name && <span className="text-muted-foreground ml-2">- {inv.contact_name}</span>}
                           <span className="text-muted-foreground ml-2">€ {inv.total_value.toFixed(2)}</span>
                           <span className="text-muted-foreground ml-1 text-xs">(30%: € {(inv.total_value * 0.30).toFixed(2)})</span>
                         </div>
