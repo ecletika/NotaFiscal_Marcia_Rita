@@ -129,6 +129,7 @@ const AgrupamentoNotas = () => {
         name: group.name,
         total_value: Number(group.total_value),
         is_completed: group.is_completed,
+        is_paid: (group as any).is_paid ?? false,
         created_at: group.created_at,
         image_url: group.image_url,
         invoices,
