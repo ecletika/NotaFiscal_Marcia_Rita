@@ -31,6 +31,7 @@ interface InvoiceGroup {
   name: string;
   total_value: number;
   is_completed: boolean;
+  is_paid: boolean;
   created_at: string;
   image_url: string | null;
   invoices: GroupInvoice[];
