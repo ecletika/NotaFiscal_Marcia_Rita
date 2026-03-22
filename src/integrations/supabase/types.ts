@@ -86,6 +86,7 @@ export type Database = {
           id: string
           image_url: string | null
           is_completed: boolean
+          is_paid: boolean
           name: string
           total_value: number
           updated_at: string
@@ -96,6 +97,7 @@ export type Database = {
           id?: string
           image_url?: string | null
           is_completed?: boolean
+          is_paid?: boolean
           name: string
           total_value?: number
           updated_at?: string
@@ -106,6 +108,7 @@ export type Database = {
           id?: string
           image_url?: string | null
           is_completed?: boolean
+          is_paid?: boolean
           name?: string
           total_value?: number
           updated_at?: string

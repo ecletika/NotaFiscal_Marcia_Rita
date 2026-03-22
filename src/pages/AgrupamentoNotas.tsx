@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -30,6 +31,7 @@ interface InvoiceGroup {
   name: string;
   total_value: number;
   is_completed: boolean;
+  is_paid: boolean;
   created_at: string;
   image_url: string | null;
   invoices: GroupInvoice[];
@@ -127,6 +129,7 @@ const AgrupamentoNotas = () => {
         name: group.name,
         total_value: Number(group.total_value),
         is_completed: group.is_completed,
+        is_paid: (group as any).is_paid ?? false,
         created_at: group.created_at,
         image_url: group.image_url,
         invoices,
@@ -211,6 +214,20 @@ const AgrupamentoNotas = () => {
     loadGroups();
   };
 
+  const togglePaid = async (group: InvoiceGroup) => {
+    const { error } = await supabase
+      .from("invoice_groups")
+      .update({ is_paid: !group.is_paid } as any)
+      .eq("id", group.id);
+
+    if (error) {
+      toast({ title: "Erro", description: "Falha ao atualizar pagamento", variant: "destructive" });
+      return;
+    }
+
+    toast({ title: "Sucesso", description: group.is_paid ? "Marcado como não pago" : "Marcado como pago" });
+    loadGroups();
+  };
   const toggleComplete = async (group: InvoiceGroup) => {
     const { error } = await supabase
       .from("invoice_groups")
@@ -425,7 +442,7 @@ const AgrupamentoNotas = () => {
               </div>
             )}
 
-            <div className="grid grid-cols-3 gap-4 mt-2 text-sm">
+            <div className="grid grid-cols-4 gap-4 mt-2 text-sm items-center">
               <div>
                 <span className="text-muted-foreground">Valor Total:</span>
                 <span className="ml-2 font-bold">€ {group.total_value.toFixed(2)}</span>
@@ -438,6 +455,16 @@ const AgrupamentoNotas = () => {
                 <span className="text-muted-foreground">Saldo:</span>
                 <span className={`ml-2 font-bold ${balance > 0 ? "text-destructive" : "text-green-600"}`}>
                   € {balance.toFixed(2)}
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  checked={group.is_paid}
+                  onCheckedChange={() => togglePaid(group)}
+                  className={`h-5 w-5 border-2 ${group.is_paid ? "border-green-600 data-[state=checked]:bg-green-600 data-[state=checked]:text-white" : "border-destructive"}`}
+                />
+                <span className={`font-bold ${group.is_paid ? "text-green-600" : "text-destructive"}`}>
+                  {group.is_paid ? "Pago" : "Não Pago"}
                 </span>
               </div>
             </div>

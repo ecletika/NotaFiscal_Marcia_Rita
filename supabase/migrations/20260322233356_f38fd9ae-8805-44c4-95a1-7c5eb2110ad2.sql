@@ -1,0 +1,1 @@
+ALTER TABLE public.invoice_groups ADD COLUMN is_paid boolean NOT NULL DEFAULT false;
