@@ -443,7 +443,7 @@ const AgrupamentoNotas = () => {
               </div>
             )}
 
-            <div className="grid grid-cols-3 gap-4 mt-2 text-sm">
+            <div className="grid grid-cols-4 gap-4 mt-2 text-sm items-center">
               <div>
                 <span className="text-muted-foreground">Valor Total:</span>
                 <span className="ml-2 font-bold">€ {group.total_value.toFixed(2)}</span>
@@ -456,6 +456,16 @@ const AgrupamentoNotas = () => {
                 <span className="text-muted-foreground">Saldo:</span>
                 <span className={`ml-2 font-bold ${balance > 0 ? "text-destructive" : "text-green-600"}`}>
                   € {balance.toFixed(2)}
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  checked={group.is_paid}
+                  onCheckedChange={() => togglePaid(group)}
+                  className={`h-5 w-5 border-2 ${group.is_paid ? "border-green-600 data-[state=checked]:bg-green-600 data-[state=checked]:text-white" : "border-destructive"}`}
+                />
+                <span className={`font-bold ${group.is_paid ? "text-green-600" : "text-destructive"}`}>
+                  {group.is_paid ? "Pago" : "Não Pago"}
                 </span>
               </div>
             </div>
