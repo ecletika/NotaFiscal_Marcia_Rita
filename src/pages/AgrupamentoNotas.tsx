@@ -482,6 +482,7 @@ const AgrupamentoNotas = () => {
                     <div key={inv.id} className="flex justify-between items-center p-2 border rounded">
                       <div className="text-sm">
                         <span className="font-medium">Nota {inv.invoice_number}</span>
+                        {inv.contact_name && <span className="text-muted-foreground ml-2">- {inv.contact_name}</span>}
                         <span className="text-muted-foreground ml-2">€ {inv.total_value.toFixed(2)}</span>
                         <span className="text-muted-foreground ml-2 text-xs">(30%: € {(inv.total_value * 0.30).toFixed(2)})</span>
                       </div>
