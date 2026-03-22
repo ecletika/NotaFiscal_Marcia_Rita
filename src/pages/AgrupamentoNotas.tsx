@@ -96,7 +96,7 @@ const AgrupamentoNotas = () => {
     if (invoiceIds.length > 0) {
       const { data: invoicesData } = await supabase
         .from("invoices")
-        .select("id, invoice_number, total_value, delivery_date")
+        .select("id, invoice_number, total_value, delivery_date, contact_name")
         .in("id", invoiceIds);
 
       for (const inv of invoicesData || []) {
