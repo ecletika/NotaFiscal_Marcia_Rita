@@ -228,8 +228,7 @@ const AgrupamentoNotas = () => {
     toast({ title: "Sucesso", description: group.is_paid ? "Marcado como não pago" : "Marcado como pago" });
     loadGroups();
   };
-
-
+  const toggleComplete = async (group: InvoiceGroup) => {
     const { error } = await supabase
       .from("invoice_groups")
       .update({ is_completed: !group.is_completed })
